@@ -11,3 +11,4 @@ wally.lock
 sourcemap.json
 Packages
 dev
+test.project.json
