@@ -4,22 +4,37 @@ local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 
 -- Affine layer y = W x + b
---@param inF number
---@param outF number
---@return table
-return function(inF: number, outF: number): Types.Module<Types.Tensor, Types.Tensor>
+-- @param inF  number  (fan-in)
+-- @param outF number  (fan-out)
+-- @param init (fanIn:number, fanOut:number) -> number
+-- @return Types.Module
+return function(
+	inF: number,
+	outF: number,
+	init: ((number, number) -> number)?
+): Types.Module<Types.Tensor, Types.Tensor>
+	-- W: {outF, inF}, b: {outF,1}
 	local W = Tensor.zeros({ outF, inF }, "f64", true)
 	local b = Tensor.zeros({ outF, 1 }, "f64", true)
+	if type(init) == "function" then
+		task.desynchronize()
+		local store = W._storage
+		local idx = 1
+		for i = 1, outF do
+			for _ = 1, inF do
+				store[idx] = init(inF, outF)
+				idx += 1
+			end
+		end
+		task.synchronize()
+	end
 	return {
 		W = W,
 		b = b,
-		-- Forward pass.
-		--@param x any @Tensor {inF,B}
-		--@return any @Tensor {outF,B}
+		-- x: {inF,B}  -> y: {outF,B}
 		forward = function(_, x: Types.Tensor): Types.Tensor
 			task.desynchronize()
 			local out = Tape.matmul(W, x)
-			-- add bias per column
 			local B = x._shape[2]
 			for i = 1, outF do
 				local bi = b._storage[i]
@@ -29,7 +44,6 @@ return function(inF: number, outF: number): Types.Module<Types.Tensor, Types.Ten
 			end
 			task.synchronize()
 			return Tape.makeNode(out, { W, b, x }, function(gy: Types.Tensor)
-				-- W and b grads are handled via matmul above + bias add split
 				if b._requiresGrad then
 					task.desynchronize()
 					if not b._grad then

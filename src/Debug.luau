@@ -9,7 +9,7 @@ local Debug = {}
 
 function Debug.checkTensor(t: Tensor, name: string?): boolean
 	if Anomaly.hasBadValues(t) then
-		warn(("Gradien.Debug: tensor '%s' has NaN/Inf/invalid values"):format(name or "?"))
+		warn(`Gradien.Debug: tensor '{name or "?"}' has NaN/Inf/invalid values`)
 		return false
 	end
 	return true
@@ -19,7 +19,7 @@ function Debug.checkGradients(params: { Tensor }, label: string?): (boolean, num
 	for i, p in params do
 		local g = p._grad
 		if g and Anomaly.hasBadValues(g) then
-			warn(("Gradien.Debug: bad gradient in param %d (%s)"):format(i, label or ""))
+			warn(`Gradien.Debug: bad gradient in param {i} ({label or ""})`)
 			return false, i
 		end
 	end
@@ -66,7 +66,7 @@ function Debug.checkModel(model, label: string?)
 	local params = model:parameters()
 	Debug.checkGradients(params, label)
 	for i, p in params do
-		Debug.checkTensor(p, (label or "model") .. (".param" .. tostring(i)))
+		Debug.checkTensor(p, `{label or "model"}.param{i}`)
 	end
 end
 

@@ -36,6 +36,7 @@ Gradien.NN = {
 	LSTM = require("@self/nn/LSTM"),
 	Sequential = require("@self/nn/Sequential"),
 	Dropout = require("@self/nn/Dropout"),
+	Fused = require("@self/nn/Fused"),
 	Softmax = require("@self/nn/Softmax"),
 	Losses = require("@self/nn/Losses"),
 	Functional = require("@self/nn/Functional"),
