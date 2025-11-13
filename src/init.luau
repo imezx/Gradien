@@ -66,6 +66,7 @@ Gradien.RL = {
 	NStep = require("@self/rl/NStep"),
 	LambdaBuffer = require("@self/rl/LambdaBuffer"),
 	A2C = require("@self/rl/A2C"),
+	PPO = require("@self/rl/PPO"),
 }
 Gradien.Classic = {
 	SoftmaxRegression = require("@self/classic/SoftmaxRegression"),
