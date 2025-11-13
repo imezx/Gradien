@@ -30,9 +30,11 @@ return function(
 			return nil
 		end
 		local last = math.min(idx + batchSize - 1, N)
-		local batchIdx = table.create(last - idx + 1, 0)
+		local batchIdx = table.create(last - idx + 1)
+		local j = 1
 		for k = idx, last do
-			table.insert(batchIdx, order[k])
+			batchIdx[j] = order[k]
+			j += 1
 		end
 		idx = last + 1
 		if dataset.batch then
