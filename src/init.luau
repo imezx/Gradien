@@ -43,6 +43,7 @@ Gradien.NN = {
 	GatedMLP = require("@self/nn/GatedMLP"),
 	DropPath = require("@self/nn/DropPath"),
 	Residual = require("@self/nn/Residual"),
+	SwiGLU = require("@self/nn/SwiGLU"),
 }
 Gradien.Optim = {
 	SGD = require("@self/optim/SGD"),

@@ -285,7 +285,7 @@ end
 
 --@param x Types.Tensor @shape {2H,B}
 --@param hidden number? @optional expected H; validated if provided
---@return Tensor @shape {H,B}
+--@return Types.Tensor @shape {H,B}
 function A.SwiGLUSplit(x: Types.Tensor, hidden: number?): Types.Tensor
 	local rows, B = x._shape[1], x._shape[2]
 	local H = math.floor(rows / 2)
