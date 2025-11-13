@@ -3,14 +3,14 @@ local Tape = require("../autograd/Tape")
 
 local Gradcheck = {}
 
-function Gradcheck.check(fn: (...number) -> (number, number), inputs: { any }, eps: number?, tol: number?)
+function Gradcheck.check(fn: (...number) -> (number, number), inputs: { any }, eps: number?, tol: number?, max_check: number?)
 	eps = eps or 1e-4
 	tol = tol or 1e-2
 	local out, grad = fn(table.unpack(inputs))
 	Tape.backwardFrom(out, grad)
 	for idx, t in ipairs(inputs) do
 		if type(t) == "table" and t._storage then
-			for i = 1, math.min(#t._storage, 50) do
+			for i = 1, math.min(#t._storage, max_check or 50) do
 				local orig = t._storage[i]
 				t._storage[i] = orig + eps
 				local out1, _ = fn(table.unpack(inputs))

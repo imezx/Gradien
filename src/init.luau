@@ -91,5 +91,8 @@ Gradien.Data = {
 Gradien.Extra = {
 	RND = require("@self/extra/RND"),
 }
+Gradien.Tools = {
+	Gradcheck = require("@self/tools/Gradcheck"),
+}
 
 return Gradien
