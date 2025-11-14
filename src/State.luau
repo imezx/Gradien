@@ -1,5 +1,6 @@
 --!optimize 2
 local Types = require("./Types")
+local Util = require("./Util")
 local State = {}
 
 --@param params { Types.Tensor } -- list of Tensors from module:parameters()
@@ -92,6 +93,15 @@ function State.loadTrainer(trainer: Types.Trainer, snap: Types.TrainerSnapshot)
 	trainer.step = snap.step or trainer.step or 0
 	trainer.epoch = snap.epoch or trainer.epoch or 0
 	trainer.bestMetric = snap.bestMetric
+end
+
+function State.toBuffer(snap: Types.Snapshot): buffer
+	local b: buffer = Util.Buffer.write(snap)
+	return b
+end
+
+function State.fromBuffer(b: buffer): Types.Snapshot?
+	return Util.Buffer.read(b)
 end
 
 return State

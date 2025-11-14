@@ -75,5 +75,6 @@ Util.RNG = require("@self/RNG")
 Util.Hooks = require("@self/Hooks")
 Util.Parallel = require("@self/Parallel")
 Util.GradStats = require("@self/GradStats")
+Util.Buffer = require("@self/Buffer")
 
 return Util
