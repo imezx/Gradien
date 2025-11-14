@@ -24,6 +24,16 @@ function S.warmupCosine(lr: number, warmup: number, T: number)
 	end
 end
 
+function S.linearWarmupThenCosine(lr, warmupSteps, totalSteps, lrMin)
+	return function(step)
+		if step < warmupSteps then
+			return lr * (step / math.max(1, warmupSteps))
+		end
+		local t = (step - warmupSteps) / math.max(1, totalSteps - warmupSteps)
+		return lrMin + 0.5 * (lr - lrMin) * (1 + math.cos(math.pi * t))
+	end
+end
+
 function S.oneCycle(lrMax: number, lrMin: number, T_up: number, T_total: number)
 	return function(step: number)
 		if step < T_up then
