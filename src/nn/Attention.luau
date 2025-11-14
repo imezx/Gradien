@@ -6,11 +6,16 @@ local Linear = require("./Linear")
 
 type TensorT = Types.Tensor
 type Module = Types.Module<TensorT, TensorT>
+type Random = typeof(Random.new())
 
 export type AttentionOptions = {
 	qkvInit: ((number, number) -> number)?,
 	projInit: ((number, number) -> number)?,
+	attentionDropout: number?, -- dropout prob applied to attention weights during training
+	dropoutRNG: Random?, -- optional RNG source for dropout sampling
+	causal: boolean?, -- enable built-in causal masking
 }
+local NEG_INF = -1e9
 
 local Attention = {}
 Attention.__index = Attention
@@ -69,6 +74,38 @@ local function addTensors(a: TensorT, b: TensorT): TensorT
 			for i = 1, #gy._storage do
 				gradB._storage[i] += gy._storage[i]
 			end
+		end
+		task.synchronize()
+	end)
+end
+
+local function dropoutTensor(x: TensorT, dropProb: number, rng: Random?): TensorT
+	if dropProb <= 0 then
+		return x
+	end
+	local keep = 1 - dropProb
+	assert(keep > 0, "dropoutTensor: keep probability must be > 0")
+	local mask = table.create(#x._storage)
+	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	task.desynchronize()
+	for i = 1, #x._storage do
+		local keepSample = ((rng or Random.new()):NextNumber(0, 1) < keep) and 1 or 0
+		mask[i] = keepSample
+		y._storage[i] = x._storage[i] * keepSample / keep
+	end
+	task.synchronize()
+	if not x._requiresGrad then
+		return y
+	end
+	return Tape.makeNode(y, { x }, function(gy: TensorT)
+		if not x._requiresGrad then
+			return
+		end
+		x._grad = x._grad or Tensor.zeros(x._shape)
+		local grad = x._grad :: TensorT
+		task.desynchronize()
+		for i = 1, #gy._storage do
+			grad._storage[i] += gy._storage[i] * (mask[i] / keep)
 		end
 		task.synchronize()
 	end)
@@ -185,12 +222,19 @@ local function concatHeads(heads: { TensorT }, headDim: number, tokens: number):
 	end)
 end
 
+type DropoutConfig = {
+	prob: number,
+	rng: Random?,
+	enabled: boolean?,
+}
+
 local function scaledDotProduct(
 	q: TensorT,
 	k: TensorT,
 	v: TensorT,
 	mask: TensorT?,
-	scaleOverride: number?
+	scaleOverride: number?,
+	dropCfg: DropoutConfig?
 ): (TensorT, TensorT)
 	local headDim = q._shape[1]
 	local queryLen = q._shape[2]
@@ -206,6 +250,9 @@ local function scaledDotProduct(
 		scores = addTensors(scores, mask)
 	end
 	local attn = softmaxRows(scores)
+	if dropCfg and dropCfg.prob > 0 and dropCfg.enabled ~= false then
+		attn = dropoutTensor(attn, dropCfg.prob, dropCfg.rng)
+	end
 	local context = Tensor.transpose(Tape.matmul(attn, Tensor.transpose(v)))
 	return context, attn
 end
@@ -223,6 +270,11 @@ function Attention.new(embedDim: number, numHeads: number, opts: AttentionOption
 		_scale = 1 / math.sqrt(headDim),
 		_qkv = Linear(embedDim, embedDim * 3, options.qkvInit),
 		_proj = Linear(embedDim, embedDim, options.projInit),
+		_attentionDropout = math.clamp(options.attentionDropout or 0, 0, 0.999),
+		_dropoutRNG = options.dropoutRNG or Random.new(),
+		_train = true,
+		_causal = options.causal == true,
+		_causalMaskCache = {} :: { [Types.DType]: { [number]: TensorT } },
 		_lastAttn = nil,
 	}, Attention)
 	return self
@@ -236,6 +288,18 @@ function Attention:forward(x: TensorT, mask: TensorT?): TensorT
 	local q = Tensor.narrow(qkv, 1, 1, embedDim)
 	local k = Tensor.narrow(qkv, 1, embedDim + 1, embedDim)
 	local v = Tensor.narrow(qkv, 1, 2 * embedDim + 1, embedDim)
+	local effMask = mask
+	if not effMask and self._causal then
+		effMask = self:_getCausalMask(tokens, q._dtype)
+	end
+	local dropCfg: DropoutConfig?
+	if self._attentionDropout > 0 and self._train then
+		dropCfg = {
+			prob = self._attentionDropout,
+			rng = self._dropoutRNG,
+			enabled = true,
+		}
+	end
 	local headOutputs = table.create(self._numHeads)
 	local attnWeights = table.create(self._numHeads)
 	for h = 0, self._numHeads - 1 do
@@ -243,7 +307,7 @@ function Attention:forward(x: TensorT, mask: TensorT?): TensorT
 		local qh = Tensor.narrow(q, 1, offset, self._headDim)
 		local kh = Tensor.narrow(k, 1, offset, self._headDim)
 		local vh = Tensor.narrow(v, 1, offset, self._headDim)
-		local ctx, weights = scaledDotProduct(qh, kh, vh, mask, self._scale)
+		local ctx, weights = scaledDotProduct(qh, kh, vh, effMask, self._scale, dropCfg)
 		headOutputs[h + 1] = ctx
 		attnWeights[h + 1] = weights
 	end
@@ -265,6 +329,39 @@ end
 
 function Attention:getLastAttention(): { TensorT }?
 	return self._lastAttn
+end
+
+function Attention:train(mode: boolean?)
+	self._train = (mode ~= false)
+end
+
+function Attention:setCausal(enabled: boolean?)
+	self._causal = enabled ~= false
+end
+
+function Attention:_getCausalMask(tokens: number, dtype: Types.DType?): TensorT
+	dtype = dtype or "f64"
+	local cacheByDtype = self._causalMaskCache[dtype]
+	if not cacheByDtype then
+		cacheByDtype = {}
+		self._causalMaskCache[dtype] = cacheByDtype
+	end
+	local mask = cacheByDtype[tokens]
+	if mask then
+		return mask
+	end
+	local newMask = Tensor.zeros({ tokens, tokens }, dtype, false)
+	task.desynchronize()
+	local store = newMask._storage
+	for i = 1, tokens do
+		local offset = (i - 1) * tokens
+		for j = i + 1, tokens do
+			store[offset + j] = NEG_INF
+		end
+	end
+	task.synchronize()
+	cacheByDtype[tokens] = newMask
+	return newMask
 end
 
 local exported = {
