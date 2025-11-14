@@ -6,6 +6,19 @@ local Util = require("./Util")
 local Types = require("./Types")
 local Tape -- lazy-load
 
+local function computeStrides(shape: { number }): { number }
+	local rank = #shape
+	local strides = table.create(rank)
+	local acc: number = 1
+	task.desynchronize()
+	for i = rank, 1, -1 do
+		strides[i] = acc
+		acc *= shape[i]
+	end
+	task.synchronize()
+	return strides
+end
+
 --@param shape {number}
 --@param dtype string?
 --@param requiresGrad boolean?
@@ -93,6 +106,240 @@ function Tensor.reshape(self: Types.Tensor, newShape: { number }): Types.Tensor
 			task.synchronize()
 		end
 	end)
+end
+
+-- @param self Tensor
+-- @param dim number -- dimension to slice (1-based)
+-- @param startIdx number -- inclusive start index
+-- @param endIdx number? -- inclusive end index (default: full dimension)
+-- @param step number? -- step > 0 (default: 1)
+-- @return Tensor
+function Tensor.slice(self: Types.Tensor, dim: number, startIdx: number, endIdx: number?, step: number?): Types.Tensor
+	local shape = self._shape
+	local rank = #shape
+	assert(dim >= 1 and dim <= rank, "slice: dim out of range")
+
+	local sizeDim = shape[dim]
+	local s = startIdx
+	local e = endIdx or sizeDim
+	local st = step or 1
+
+	assert(st > 0, "slice: step must be > 0")
+	assert(s >= 1 and s <= sizeDim, "slice: startIdx out of bounds")
+	assert(e >= 1 and e <= sizeDim, "slice: endIdx out of bounds")
+	assert(e >= s, "slice: endIdx must be >= startIdx")
+
+	local length = math.floor((e - s) / st) + 1
+	local outShape = table.clone(shape)
+	outShape[dim] = length
+
+	local outSize = Util.sizeFromShape(outShape)
+	local outStorage = table.create(outSize)
+	local inStrides = computeStrides(shape)
+	local outStrides = computeStrides(outShape)
+
+	do
+		task.desynchronize()
+		local coord = table.create(rank, 1)
+		local srcStorage = self._storage
+		for flatOut = 1, outSize do
+			local idx0 = flatOut - 1
+			for d = 1, rank do
+				local stride = outStrides[d]
+				local v = math.floor(idx0 / stride)
+				coord[d] = v + 1
+				idx0 = idx0 % stride
+			end
+			local posDim = s + (coord[dim] - 1) * st
+			local flatIn0 = 0
+			for d = 1, rank do
+				local cd = coord[d]
+				if d == dim then
+					cd = posDim
+				end
+				flatIn0 += (cd - 1) * inStrides[d]
+			end
+			outStorage[flatOut] = srcStorage[flatIn0 + 1]
+		end
+		task.synchronize()
+	end
+	local out = setmetatable({
+		_storage = outStorage,
+		_shape = outShape,
+		_dtype = self._dtype,
+		_requiresGrad = self._requiresGrad,
+		_parents = nil,
+		_backprop = nil,
+		_grad = nil,
+	}, Tensor)
+	if not self._requiresGrad then
+		return out
+	end
+	if not Tape then
+		Tape = require("./autograd/Tape") :: any
+	end
+	local shapeCopy = table.clone(shape)
+	local inStridesCopy = computeStrides(shapeCopy)
+	local outStridesCopy = computeStrides(outShape)
+	local dimCopy = dim
+	local sCopy = s
+	local stCopy = st
+	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
+		if not self._requiresGrad then
+			return
+		end
+		self._grad = self._grad or Tensor.zeros(shapeCopy, self._dtype, false)
+		task.desynchronize()
+		local gsrc = self._grad._storage
+		local gys = gy._storage
+		local coord = table.create(rank, 1)
+		local total = #gys
+		for flatOut = 1, total do
+			local idx0 = flatOut - 1
+			for d = 1, rank do
+				local stride = outStridesCopy[d]
+				local v = math.floor(idx0 / stride)
+				coord[d] = v + 1
+				idx0 = idx0 % stride
+			end
+			local posDim = sCopy + (coord[dimCopy] - 1) * stCopy
+			local flatIn0 = 0
+			for d = 1, rank do
+				local cd = coord[d]
+				if d == dimCopy then
+					cd = posDim
+				end
+				flatIn0 += (cd - 1) * inStridesCopy[d]
+			end
+			gsrc[flatIn0 + 1] += gys[flatOut]
+		end
+		task.synchronize()
+	end)
+end
+
+-- @param self Tensor
+-- @param dim1 number? -- first dimension (1-based)
+-- @param dim2 number? -- second dimension (1-based)
+-- @return Tensor
+function Tensor.transpose(self: Types.Tensor, dim1: number?, dim2: number?): Types.Tensor
+	local shape = self._shape
+	local rank = #shape
+
+	local d1 = dim1
+	local d2 = dim2
+	if d1 == nil and d2 == nil then
+		assert(rank == 2, "transpose: default dims only valid for rank-2 tensors")
+		d1, d2 = 1, 2
+	else
+		assert(d1 ~= nil and d2 ~= nil, "transpose: both dim1 and dim2 must be provided")
+	end
+
+	assert(d1 >= 1 and d1 <= rank, "transpose: dim1 out of range")
+	assert(d2 >= 1 and d2 <= rank, "transpose: dim2 out of range")
+	assert(d1 ~= d2, "transpose: dim1 and dim2 must be different")
+
+	local perm = table.create(rank)
+	for i = 1, rank do
+		perm[i] = i
+	end
+	perm[d1], perm[d2] = perm[d2], perm[d1]
+
+	local outShape = table.create(rank)
+	for i = 1, rank do
+		outShape[i] = shape[perm[i]]
+	end
+
+	local inSize = Util.sizeFromShape(shape)
+	local outSize = Util.sizeFromShape(outShape)
+	assert(inSize == outSize, "transpose: internal size mismatch")
+
+	local inStrides = computeStrides(shape)
+	local outStrides = computeStrides(outShape)
+
+	local src = self._storage
+	local dst = table.create(outSize)
+
+	do
+		task.desynchronize()
+		local coordIn = table.create(rank, 1)
+		for flatIn = 1, inSize do
+			local idx0 = flatIn - 1
+			for d = 1, rank do
+				local stride = inStrides[d]
+				local v = math.floor(idx0 / stride)
+				coordIn[d] = v + 1
+				idx0 = idx0 % stride
+			end
+			local flatOut0 = 0
+			for outDim = 1, rank do
+				local inDim = perm[outDim]
+				local c = coordIn[inDim]
+				flatOut0 += (c - 1) * outStrides[outDim]
+			end
+			dst[flatOut0 + 1] = src[flatIn]
+		end
+		task.synchronize()
+	end
+	local out = setmetatable({
+		_storage = dst,
+		_shape = outShape,
+		_dtype = self._dtype,
+		_requiresGrad = self._requiresGrad,
+		_parents = nil,
+		_backprop = nil,
+		_grad = nil,
+	}, Tensor)
+	if not self._requiresGrad then
+		return out
+	end
+	if not Tape then
+		Tape = require("./autograd/Tape") :: any
+	end
+	local shapeCopy = table.clone(shape)
+	local permCopy = table.clone(perm)
+	local inStridesCopy = computeStrides(shapeCopy)
+	local outStridesCopy = computeStrides(outShape)
+
+	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
+		if not self._requiresGrad then
+			return
+		end
+		self._grad = self._grad or Tensor.zeros(shapeCopy, self._dtype, false)
+		task.desynchronize()
+		local gsrc = self._grad._storage
+		local gys = gy._storage
+		local coordIn = table.create(rank, 1)
+		local total = #gsrc
+
+		for flatIn = 1, total do
+			local idx0 = flatIn - 1
+			for d = 1, rank do
+				local stride = inStridesCopy[d]
+				local v = math.floor(idx0 / stride)
+				coordIn[d] = v + 1
+				idx0 = idx0 % stride
+			end
+			local flatOut0 = 0
+			for outDim = 1, rank do
+				local inDim = permCopy[outDim]
+				local c = coordIn[inDim]
+				flatOut0 += (c - 1) * outStridesCopy[outDim]
+			end
+			gsrc[flatIn] += gys[flatOut0 + 1]
+		end
+		task.synchronize()
+	end)
+end
+
+-- @param self Tensor
+-- @param dim number -- dimension to narrow (1-based)
+-- @param startIdx number -- inclusive start index
+-- @param length number -- number of elements to keep along that dim
+-- @return Tensor
+function Tensor.narrow(self: Types.Tensor, dim: number, startIdx: number, length: number): Types.Tensor
+	assert(length >= 1, "narrow: length must be >= 1")
+	local endIdx = startIdx + length - 1
+	return Tensor.slice(self, dim, startIdx, endIdx, 1)
 end
 
 function Tensor.detach(self: Types.Tensor): Types.Tensor
