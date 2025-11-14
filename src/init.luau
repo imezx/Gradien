@@ -15,6 +15,7 @@ Gradien.State = require("@self/State")
 Gradien.Types = require("@self/Types")
 Gradien.Util = require("@self/Util")
 Gradien.Tensor = require("@self/Tensor")
+Gradien.Debug = require("@self/Debug")
 
 Gradien.Ops = {
 	Math = require("@self/ops/Math"),
