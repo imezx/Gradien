@@ -61,7 +61,7 @@ end
 --@param x @Tensor
 function Tape.matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	local Y = BLAS.matmul(A, B)
-	return withTape(Y, { A, B }, function(gY)
+	return withTape(Y, { A, B }, function(gY: Types.Tensor)
 		-- dA = gY @ B^T ; dB = A^T @ gY
 		task.desynchronize()
 		local M, K = A._shape[1], A._shape[2]

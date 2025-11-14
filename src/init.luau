@@ -32,6 +32,7 @@ Gradien.NN = {
 	BatchNorm1d = require("@self/nn/BatchNorm1d"),
 	BatchNorm2d = require("@self/nn/BatchNorm2d"),
 	Embedding = require("@self/nn/Embedding"),
+	Attention = require("@self/nn/Attention"),
 	RNN = require("@self/nn/RNN"),
 	GRU = require("@self/nn/GRU"),
 	LSTM = require("@self/nn/LSTM"),
