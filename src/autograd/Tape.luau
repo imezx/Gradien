@@ -3,8 +3,15 @@ local Tensor = require("../Tensor")
 local BLAS = require("../ops/BLAS")
 local Types = require("../Types")
 local Tape = {}
+local gradEnabled = true
 
 local function withTape(t: Types.Tensor, parents: { Types.Tensor }, back: (grad: Types.Tensor) -> ()): Types.Tensor
+	if not gradEnabled then
+		t._parents = nil
+		t._backprop = nil
+		t._requiresGrad = false
+		return t
+	end
 	t._parents = parents
 	t._backprop = back
 	t._requiresGrad = false
@@ -99,7 +106,7 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 	task.desynchronize()
 	local stack = { { y, grad } }
 	while #stack > 0 do
-		local node, g = table.unpack(table.remove(stack))
+		local node, g = table.unpack(table.remove(stack) :: { Types.Tensor })
 		if node._backprop then
 			node._backprop(g)
 		end
@@ -112,6 +119,38 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 		end
 	end
 	task.synchronize()
+end
+
+function Tape.noGrad(fn: () -> ()): ()
+	gradEnabled = false
+	local ok, err = pcall(fn)
+	gradEnabled = true
+	if not ok then
+		error(err)
+	end
+end
+
+function Tape.grad(f: (...any) -> Types.Tensor, inputs: { Types.Tensor }): { Types.Tensor? }
+	local oldReq: { boolean } = {}
+	for i, x in inputs do
+		oldReq[i] = x._requiresGrad
+		x._requiresGrad = true
+		x._grad = nil
+	end
+
+	local y = f(table.unpack(inputs))
+	if y == nil or y._shape == nil then
+		error("Autograd.grad: f must return a Tensor")
+	end
+
+	Tape.backwardFrom(y, Tensor.ones(y._shape))
+
+	local out: { Types.Tensor? } = {}
+	for i, x in inputs do
+		out[i] = x._grad
+		x._requiresGrad = oldReq[i]
+	end
+	return out
 end
 
 return Tape

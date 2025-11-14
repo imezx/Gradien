@@ -1,5 +1,5 @@
 --[[
-Gradien (ML Library) Version 1.2.0
+Gradien (ML Library) Version 1.3.0
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
 written by @Eternity_Devs
 ]]
@@ -44,6 +44,10 @@ Gradien.NN = {
 	DropPath = require("@self/nn/DropPath"),
 	Residual = require("@self/nn/Residual"),
 	SwiGLU = require("@self/nn/SwiGLU"),
+	Conv2d = require("@self/nn/Conv2d"),
+	MaxPool2d = require("@self/nn/MaxPool2d"),
+	AvgPool2d = require("@self/nn/AvgPool2d"),
+	Flatten = require("@self/nn/Flatten"),
 }
 Gradien.Optim = {
 	SGD = require("@self/optim/SGD"),

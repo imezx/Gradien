@@ -1,15 +1,15 @@
 --!optimize 2
 local GC = {}
 function GC.clipValue(params, clip)
+	task.desynchronize()
 	for _, p in params do
 		if p._grad then
-			task.desynchronize()
 			for i = 1, #p._grad._storage do
 				p._grad._storage[i] = math.clamp(p._grad._storage[i], -clip, clip)
 			end
-			task.synchronize()
 		end
 	end
+	task.synchronize()
 end
 function GC.clipNorm(params, maxNorm)
 	task.desynchronize()

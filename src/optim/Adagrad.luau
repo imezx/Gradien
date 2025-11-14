@@ -6,9 +6,9 @@ return function(params: { any }, lr: number, eps: number?)
 	local G: { [any]: { [number]: number } } = {}
 	local self: Optimizer = {
 		step = function(_)
+			task.desynchronize()
 			for _, p in params do
 				if p._grad then
-					task.desynchronize()
 					local ps, gs = p._storage, p._grad._storage
 					local Gi = G[p]
 					if not Gi then
@@ -19,9 +19,9 @@ return function(params: { any }, lr: number, eps: number?)
 						Gi[i] += gs[i] * gs[i]
 						ps[i] -= lr * gs[i] / (math.sqrt(Gi[i]) + (eps :: number))
 					end
-					task.synchronize()
 				end
 			end
+			task.synchronize()
 		end,
 		zeroGrad = function(_)
 			for _, p in params do

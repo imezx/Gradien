@@ -9,11 +9,27 @@ local Types = require("./Types")
 --@param dtype string?
 --@param requiresGrad boolean?
 --@return Tensor
-function Tensor.zeros(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?)
+function Tensor.zeros(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Types.Tensor
 	dtype = dtype or "f64"
 	local n = Util.sizeFromShape(shape)
 	local self = setmetatable({
 		_storage = table.create(n, 0),
+		_shape = table.clone(shape),
+		_dtype = dtype,
+		_requiresGrad = requiresGrad == true,
+	}, Tensor)
+	return self
+end
+
+--@param shape {number}
+--@param dtype string?
+--@param requiresGrad boolean?
+--@return Tensor
+function Tensor.ones(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Types.Tensor
+	dtype = dtype or "f64"
+	local n = Util.sizeFromShape(shape)
+	local self = setmetatable({
+		_storage = table.create(n, 1),
 		_shape = table.clone(shape),
 		_dtype = dtype,
 		_requiresGrad = requiresGrad == true,
@@ -26,7 +42,9 @@ end
 --@param dtype string?
 --@param requiresGrad boolean?
 --@return Tensor
-function Tensor.fromArray(data: { number }, shape: { number }, dtype: Types.DType?, requiresGrad: boolean?)
+function Tensor.fromArray(data: { number }, shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Types.Tensor
+	local n = Util.sizeFromShape(shape)
+	assert(#data == n, ("Tensor.fromArray: got %d elements, expected %d"):format(#data, n))
 	dtype = dtype or "f64"
 	local self = setmetatable({
 		_storage = table.clone(data),
@@ -35,6 +53,19 @@ function Tensor.fromArray(data: { number }, shape: { number }, dtype: Types.DTyp
 		_requiresGrad = requiresGrad == true,
 	}, Tensor)
 	return self
+end
+
+function Tensor.detach(self: Types.Tensor): Types.Tensor
+	local out = setmetatable({
+		_storage = self._storage,
+		_shape = table.clone(self._shape),
+		_dtype = self._dtype,
+		_requiresGrad = false,
+		_parents = nil,
+		_backprop = nil,
+		_grad = nil,
+	}, Tensor)
+	return out
 end
 
 return Tensor

@@ -1,5 +1,5 @@
 --!strict
-export type DType = "f64" | "f32" | "i32" | "u8" | string
+export type DType = "f64" | "f32" | "i32" | "u8"
 export type Shape = { number }
 export type Storage = { number }
 
@@ -18,9 +18,20 @@ export type Module<TIn = Tensor, TOut = Tensor> = {
 	parameters: (self: Module<TIn, TOut>) -> { Tensor },
 }
 
+export type OptimizerState = {
+	lr: number,
+	b1: number,
+	b2: number,
+	eps: number,
+	t: number,
+	m: { [Tensor]: { [number]: number } },
+	v: { [Tensor]: { [number]: number } },
+}
 export type Optimizer = {
 	step: (self: Optimizer) -> (),
 	zeroGrad: (self: Optimizer) -> (),
+	getState: (self: Optimizer) -> OptimizerState?,
+	setState: (self: Optimizer, state: OptimizerState?) -> (),
 }
 
 export type LossFn = (pred: Tensor, target: Tensor) -> (number, Tensor)
@@ -33,5 +44,83 @@ export type Dataset = {
 }
 
 export type BatchIter = () -> ({ number }, { number }) | nil
+
+export type Snapshot = { SnapshotTensor }
+export type TrainerSnapshot = {
+	model: Snapshot,
+	optimizer: OptimizerState?,
+	step: number?,
+	epoch: number?,
+	bestMetric: number?,
+}
+
+export type SnapshotTensor = {
+	shape: { number },
+	dtype: DType,
+	data: { number },
+}
+
+export type TrainerEvent = "step_end" | "epoch_end" | "best"
+
+export type CallbackContext = {
+	epoch: number,
+	step: number?,
+	loss: number?,
+	metric: number?,
+	model: Module,
+	optimizer: Optimizer,
+}
+
+export type CallbackFn = (TrainerEvent, CallbackContext) -> ()
+
+export type CallbackTable = {
+	onStep: ((CallbackContext) -> ())?,
+	onEpochEnd: ((CallbackContext) -> ())?,
+	onBest: ((CallbackContext) -> ())?,
+}
+
+export type Callbacks = { CallbackFn } | CallbackTable
+
+export type SimpleConfig = {
+	model: Module,
+	optimizer: (params: { Tensor }) -> Optimizer,
+	loss: LossFn,
+	loader: () -> (Tensor, Tensor),
+	metric: ((Tensor, Tensor) -> number)?,
+	steps: number?,
+	reportEvery: number?,
+	onMetric: ((number) -> ())?,
+	callbacks: Callbacks?,
+}
+
+export type TrainerConfig = {
+	model: Module,
+	optimizerFactory: (({ Tensor }) -> Optimizer)?,
+	optimizer: Optimizer?,
+	loss: LossFn,
+	metric: ((Tensor, Tensor) -> number)?,
+	reportEvery: number?,
+	lrScheduler: ((number) -> number)?,
+	callbacks: Callbacks?,
+}
+
+export type FitOptions = {
+	epochs: number?,
+	stepsPerEpoch: number?,
+	onMetric: ((number, number, number) -> ())?, -- (epoch, step, metric)
+}
+
+export type Trainer = {
+	step: number,
+	epoch: number,
+	model: Module,
+	optimizer: Optimizer,
+	loss: LossFn,
+	metric: ((Tensor, Tensor) -> number)?,
+	lrScheduler: ((number) -> number)?,
+	reportEvery: number?,
+	callbacks: { CallbackFn },
+	bestMetric: number?,
+}
 
 return nil

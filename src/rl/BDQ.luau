@@ -331,10 +331,8 @@ return function(cfg)
 		
 		if tau then
 			softSync()
-		else
-			if cfg.targetSyncInterval and stepCounter % cfg.targetSyncInterval == 0 then
-				hardSync()
-			end
+		elseif cfg.targetSyncInterval and stepCounter % cfg.targetSyncInterval == 0 then
+			hardSync()
 		end
 
 		if cfg.replay and cfg.replay.updatePriorities and batch.indices then
@@ -355,7 +353,7 @@ return function(cfg)
 		if strict ~= false then
 			assert(#fp == #snapshot, "snapshot size mismatch")
 			for i=1,#fp do
-				assert(#fp[i]._storage == #snapshot[i], ("tensor size mismatch at %d, got %s:%s"):format(i, #fp[i]._storage, #snapshot[i]))
+				assert(#fp[i]._storage == #snapshot[i], ("tensor size mismatch at %d, got %d:%d"):format(i, #fp[i]._storage, #snapshot[i]))
 			end
 		end
 		local n = math.min(#fp, #snapshot)

@@ -2,76 +2,22 @@
 local Tape = require("./autograd/Tape")
 local Types = require("./Types")
 
-type Tensor = Types.Tensor
-type Module = Types.Module
-type Optimizer = Types.Optimizer
-type LossFn = Types.LossFn
-
-export type TrainerEvent = "step_end" | "epoch_end" | "best"
-
-export type CallbackContext = {
-	epoch: number,
-	step: number?,
-	loss: number?,
-	metric: number?,
-	model: Module,
-	optimizer: Optimizer,
-}
-
-export type CallbackFn = (TrainerEvent, CallbackContext) -> ()
-
-export type CallbackTable = {
-	onStep: ((CallbackContext) -> ())?,
-	onEpochEnd: ((CallbackContext) -> ())?,
-	onBest: ((CallbackContext) -> ())?,
-}
-
-export type Callbacks = { CallbackFn } | CallbackTable
-
-export type SimpleConfig = {
-	model: Module,
-	optimizer: (params: { Tensor }) -> Optimizer,
-	loss: LossFn,
-	loader: () -> (Tensor, Tensor),
-	metric: ((Tensor, Tensor) -> number)?,
-	steps: number?,
-	reportEvery: number?,
-	onMetric: ((number) -> ())?,
-	callbacks: Callbacks?,
-}
-
-export type TrainerConfig = {
-	model: Module,
-	optimizerFactory: (({ Tensor }) -> Optimizer)?,
-	optimizer: Optimizer?,
-	loss: LossFn,
-	metric: ((Tensor, Tensor) -> number)?,
-	reportEvery: number?,
-	callbacks: Callbacks?,
-}
-
-export type FitOptions = {
-	epochs: number?,
-	stepsPerEpoch: number?,
-	onMetric: ((number, number, number) -> ())?, -- (epoch, step, metric)
-}
-
 local Trainer = {}
 Trainer.__index = Trainer
 
-local function asArrayCallbacks(raw: Callbacks?, default: { CallbackFn }?): { CallbackFn }
+local function asArrayCallbacks(raw: Types.Callbacks?, default: { Types.CallbackFn }?): { Types.CallbackFn }
 	if type(raw) ~= "table" then
 		return default or {}
 	end
 	if next(raw) then
-		return raw :: { CallbackFn }
+		return raw :: { Types.CallbackFn }
 	end
 
-	local tbl = raw :: CallbackTable
-	local out: { CallbackFn } = {}
+	local tbl = raw :: Types.CallbackTable
+	local out: { Types.CallbackFn } = {}
 	if tbl.onStep then
 		local fn = tbl.onStep
-		table.insert(out, function(event: TrainerEvent, ctx: CallbackContext)
+		table.insert(out, function(event: Types.TrainerEvent, ctx: Types.CallbackContext)
 			if event == "step_end" then
 				fn(ctx)
 			end
@@ -79,7 +25,7 @@ local function asArrayCallbacks(raw: Callbacks?, default: { CallbackFn }?): { Ca
 	end
 	if tbl.onEpochEnd then
 		local fn = tbl.onEpochEnd
-		table.insert(out, function(event: TrainerEvent, ctx: CallbackContext)
+		table.insert(out, function(event: Types.TrainerEvent, ctx: Types.CallbackContext)
 			if event == "epoch_end" then
 				fn(ctx)
 			end
@@ -87,7 +33,7 @@ local function asArrayCallbacks(raw: Callbacks?, default: { CallbackFn }?): { Ca
 	end
 	if tbl.onBest then
 		local fn = tbl.onBest
-		table.insert(out, function(event: TrainerEvent, ctx: CallbackContext)
+		table.insert(out, function(event: Types.TrainerEvent, ctx: Types.CallbackContext)
 			if event == "best" then
 				fn(ctx)
 			end
@@ -96,13 +42,13 @@ local function asArrayCallbacks(raw: Callbacks?, default: { CallbackFn }?): { Ca
 	return out
 end
 
-local function fireCallbacks(callbacks: { CallbackFn }, event: TrainerEvent, ctx: CallbackContext)
+local function fireCallbacks(callbacks: { Types.CallbackFn }, event: Types.TrainerEvent, ctx: Types.CallbackContext)
 	for _, cb in callbacks do
 		cb(event, ctx)
 	end
 end
 
-local function runSimple(cfg: SimpleConfig): ()
+local function runSimple(cfg: Types.SimpleConfig): ()
 	task.desynchronize()
 	local model = cfg.model
 	local opt = cfg.optimizer(model:parameters())
@@ -162,16 +108,16 @@ end
 
 --@param cfg { model: Module, optimizerFactory: (({ Tensor }) -> Optimizer)?, optimizer: Optimizer?, loss: LossFn, metric: ((Tensor, Tensor) -> number)?, reportEvery: number?, callbacks: Callbacks? }
 --@return Trainer
-function Trainer.new(cfg: TrainerConfig)
+function Trainer.new(cfg: Types.TrainerConfig)
 	local model = cfg.model
 	local params = model:parameters()
 
-	local opt: Optimizer
+	local opt: Types.Optimizer
 	if cfg.optimizerFactory then
 		opt = cfg.optimizerFactory(params)
 	else
 		assert(cfg.optimizer, "Trainer.new: provide optimizerFactory OR optimizer instance")
-		opt = cfg.optimizer :: Optimizer
+		opt = cfg.optimizer :: Types.Optimizer
 	end
 
 	local self = setmetatable({
@@ -180,8 +126,11 @@ function Trainer.new(cfg: TrainerConfig)
 		loss = cfg.loss,
 		metric = cfg.metric,
 		reportEvery = cfg.reportEvery or 10,
+		lrScheduler = cfg.lrScheduler,
 		callbacks = asArrayCallbacks(cfg.callbacks, {}),
 		bestMetric = nil,
+		step = 0,
+		epoch = 0,
 	}, Trainer)
 
 	return self
@@ -189,15 +138,15 @@ end
 
 --@param makeLoader () -> () -> (Tensor?, Tensor?)
 --@param opts { epochs: number?, stepsPerEpoch: number?, onMetric: ((number, number, number) -> ())? }
-function Trainer:fit(makeLoader: () -> () -> (Tensor?, Tensor?), opts: FitOptions?)
+function Trainer:fit(makeLoader: () -> () -> (Types.Tensor?, Types.Tensor?), opts: Types.FitOptions?)
 	opts = opts or {}
-	local epochs = opts.epochs or 1
+	local epochs = opts.epochs or self.epoch or 1
 	local stepsPerEpoch = opts.stepsPerEpoch
 	local onMetric = opts.onMetric
 
 	for epoch = 1, epochs do
+		self.epoch = epoch
 		local loader = makeLoader()
-		local step = 0
 		local lastLoss: number? = nil
 		local lastMetric: number? = nil
 
@@ -206,7 +155,7 @@ function Trainer:fit(makeLoader: () -> () -> (Tensor?, Tensor?), opts: FitOption
 			if not X then
 				break
 			end
-			step += 1
+			self.step += 1
 
 			self.optimizer:zeroGrad()
 			local out = self.model:forward(X)
@@ -217,19 +166,19 @@ function Trainer:fit(makeLoader: () -> () -> (Tensor?, Tensor?), opts: FitOption
 			lastLoss = lossValue
 			local metricValue: number? = nil
 
-			if self.metric and self.reportEvery > 0 and (step % self.reportEvery == 0) then
+			if self.metric and self.reportEvery > 0 and (self.step % self.reportEvery == 0) then
 				local m = self.metric(out, Y)
 				metricValue = m
 				lastMetric = m
 
 				if onMetric then
-					onMetric(epoch, step, m)
+					onMetric(epoch, self.step, m)
 				end
 				if self.bestMetric == nil or m > (self.bestMetric :: number) then
 					self.bestMetric = m
 					fireCallbacks(self.callbacks, "best", {
 						epoch = epoch,
-						step = step,
+						step = self.step,
 						loss = lossValue,
 						metric = m,
 						model = self.model,
@@ -240,21 +189,21 @@ function Trainer:fit(makeLoader: () -> () -> (Tensor?, Tensor?), opts: FitOption
 
 			fireCallbacks(self.callbacks, "step_end", {
 				epoch = epoch,
-				step = step,
+				step = self.step,
 				loss = lossValue,
 				metric = metricValue,
 				model = self.model,
 				optimizer = self.optimizer,
 			})
 
-			if stepsPerEpoch and step >= stepsPerEpoch then
+			if stepsPerEpoch and self.step >= stepsPerEpoch then
 				break
 			end
 		end
 
 		fireCallbacks(self.callbacks, "epoch_end", {
 			epoch = epoch,
-			step = step,
+			step = self.step,
 			loss = lastLoss,
 			metric = lastMetric,
 			model = self.model,
@@ -263,7 +212,7 @@ function Trainer:fit(makeLoader: () -> () -> (Tensor?, Tensor?), opts: FitOption
 	end
 end
 
-function Trainer:run(loader: () -> (Tensor?, Tensor?), opts: FitOptions?)
+function Trainer:run(loader: () -> (Types.Tensor?, Types.Tensor?), opts: Types.FitOptions?)
 	local function makeLoader()
 		return loader
 	end
@@ -271,7 +220,7 @@ function Trainer:run(loader: () -> (Tensor?, Tensor?), opts: FitOptions?)
 end
 
 setmetatable(Trainer, {
-	__call = function(_, cfg: SimpleConfig)
+	__call = function(_, cfg: Types.SimpleConfig)
 		return runSimple(cfg)
 	end,
 })

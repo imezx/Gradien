@@ -1,21 +1,28 @@
 --!optimize 2
-export type Optimizer = { step: (self: Optimizer) -> (), zeroGrad: (self: Optimizer) -> () }
+local Types = require("../Types")
 
-return function(params: { any }, lr: number, wd: number, b1: number?, b2: number?, eps: number?)
+return function(
+	params: { Types.Tensor },
+	lr: number,
+	wd: number,
+	b1: number?,
+	b2: number?,
+	eps: number?
+)
 	b1 = b1 or 0.9
 	b2 = b2 or 0.999
 	eps = eps or 1e-8
-	local m: { [any]: { [number]: number } } = {}
-	local v: { [any]: { [number]: number } } = {}
+	local m: { [Types.Tensor]: { [number]: number } } = {}
+	local v: { [Types.Tensor]: { [number]: number } } = {}
 	local t = 0
-	local self: Optimizer = {
+	local self = {
 		step = function(_)
 			t += 1
 			local b1t = (b1 :: number) ^ t
 			local b2t = (b2 :: number) ^ t
+			task.desynchronize()
 			for _, p in params do
 				if p._grad then
-					task.desynchronize()
 					local ps, gs = p._storage, p._grad._storage
 					local mi = m[p]
 					if not mi then
@@ -35,13 +42,43 @@ return function(params: { any }, lr: number, wd: number, b1: number?, b2: number
 						local vHat = vi[i] / (1 - b2t)
 						ps[i] -= lr * (mHat / (math.sqrt(vHat) + (eps :: number)) + wd * ps[i])
 					end
-					task.synchronize()
 				end
 			end
+			task.synchronize()
 		end,
 		zeroGrad = function(_)
 			for _, p in params do
 				p._grad = nil
+			end
+		end,
+		getState = function()
+			return {
+				lr = lr,
+				wd = wd,
+				b1 = b1,
+				b2 = b2,
+				eps = eps,
+				t = t,
+			}
+		end,
+		setState = function(_, state: { lr: number, wd: number, b1: number, b2: number, eps: number, t: number })
+			if state.lr ~= nil then
+				lr = state.lr
+			end
+			if state.wd ~= nil then
+				wd = state.wd
+			end
+			if state.b1 ~= nil then
+				b1 = state.b1
+			end
+			if state.b2 ~= nil then
+				b2 = state.b2
+			end
+			if state.eps ~= nil then
+				eps = state.eps
+			end
+			if state.t ~= nil then
+				t = state.t
 			end
 		end,
 	}

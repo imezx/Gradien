@@ -9,7 +9,7 @@ return function(p: number?, training: boolean?, rng: Random?): Types.Module<Type
 	local drop = p or 0.2
 	local keep = 1 - drop
 	return {
-		_train = true,
+		_train = type(training) == "boolean" and training or true,
 		train = function(self, mode)
 			self._train = mode == nil and true or mode
 		end,

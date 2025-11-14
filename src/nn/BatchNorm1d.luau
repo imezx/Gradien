@@ -16,13 +16,12 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 	local beta = Tensor.zeros({ D, 1 }, "f64", true)
 	local runningMean = Tensor.zeros({ 1, 1 })
 	local runningVar = Tensor.fromArray({ 1 }, { 1, 1 })
-	local training = true
-	local self
-	self = {
-		train = function(_, mode: boolean)
-			training = mode
+	return {
+		_train = true,
+		train = function(self, mode: boolean)
+			self._train = mode == nil and true or mode
 		end,
-		forward = function(_, x: Types.Tensor): Types.Tensor
+		forward = function(self, x: Types.Tensor): Types.Tensor
 			local D_, B = x._shape[1], x._shape[2]
 			assert(D_ == D, "BN1d D mismatch")
 			task.desynchronize()
@@ -45,7 +44,7 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 				return sq
 			end)())
 			task.desynchronize()
-			if training then
+			if self._train then
 				runningMean._storage[1] = (1 - (momentum :: number)) * runningMean._storage[1]
 					+ (momentum :: number) * mu._storage[1]
 				runningVar._storage[1] = (1 - (momentum :: number)) * runningVar._storage[1]
@@ -113,5 +112,4 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 			return { gamma, beta }
 		end,
 	}
-	return self
 end
