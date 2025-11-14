@@ -19,6 +19,86 @@ local function computeStrides(shape: { number }): { number }
 	return strides
 end
 
+local function makeRangeView(storage: { number }, startIndex: number, length: number)
+	local view = {
+		_base = storage,
+		_offset = startIndex - 1,
+		_len = length,
+	}
+	return setmetatable(view, {
+		__len = function(tbl)
+			return tbl._len
+		end,
+		__index = function(tbl, key)
+			if type(key) ~= "number" then
+				return rawget(tbl, key)
+			end
+			if key < 1 or key > tbl._len then
+				error("Tensor view index out of range")
+			end
+			return tbl._base[tbl._offset + key]
+		end,
+		__newindex = function(tbl, key, value)
+			if type(key) ~= "number" then
+				rawset(tbl, key, value)
+				return
+			end
+			if key < 1 or key > tbl._len then
+				error("Tensor view index out of range")
+			end
+			tbl._base[tbl._offset + key] = value
+		end,
+	})
+end
+
+local function makeTranspose2DView(storage: { number }, rows: number, cols: number)
+	local total = rows * cols
+	local view = {
+		_base = storage,
+		_rows = rows,
+		_cols = cols,
+		_len = total,
+	}
+	return setmetatable(view, {
+		__len = function(tbl)
+			return tbl._len
+		end,
+		__index = function(tbl, key)
+			if type(key) ~= "number" then
+				return rawget(tbl, key)
+			end
+			if key < 1 or key > tbl._len then
+				error("Tensor transpose view index out of range")
+			end
+			local colsOut = tbl._rows
+			local zero = key - 1
+			local rowOut = math.floor(zero / colsOut)
+			local colOut = zero % colsOut
+			local baseRow = colOut + 1
+			local baseCol = rowOut + 1
+			local baseIdx = (baseRow - 1) * tbl._cols + baseCol
+			return tbl._base[baseIdx]
+		end,
+		__newindex = function(tbl, key, value)
+			if type(key) ~= "number" then
+				rawset(tbl, key, value)
+				return
+			end
+			if key < 1 or key > tbl._len then
+				error("Tensor transpose view index out of range")
+			end
+			local colsOut = tbl._rows
+			local zero = key - 1
+			local rowOut = math.floor(zero / colsOut)
+			local colOut = zero % colsOut
+			local baseRow = colOut + 1
+			local baseCol = rowOut + 1
+			local baseIdx = (baseRow - 1) * tbl._cols + baseCol
+			tbl._base[baseIdx] = value
+		end,
+	})
+end
+
 --@param shape {number}
 --@param dtype string?
 --@param requiresGrad boolean?
@@ -134,11 +214,16 @@ function Tensor.slice(self: Types.Tensor, dim: number, startIdx: number, endIdx:
 	outShape[dim] = length
 
 	local outSize = Util.sizeFromShape(outShape)
-	local outStorage = table.create(outSize)
 	local inStrides = computeStrides(shape)
 	local outStrides = computeStrides(outShape)
-
-	do
+	local useView = (dim == 1 and st == 1)
+	local outStorage
+	if useView then
+		local chunk = outSize / length
+		local offset = (s - 1) * chunk + 1
+		outStorage = makeRangeView(self._storage, offset, outSize)
+	else
+		outStorage = table.create(outSize)
 		task.desynchronize()
 		local coord = table.create(rank, 1)
 		local srcStorage = self._storage
@@ -256,10 +341,12 @@ function Tensor.transpose(self: Types.Tensor, dim1: number?, dim2: number?): Typ
 	local inStrides = computeStrides(shape)
 	local outStrides = computeStrides(outShape)
 
-	local src = self._storage
-	local dst = table.create(outSize)
-
-	do
+	local useView = (rank == 2 and ((d1 == 1 and d2 == 2) or (d1 == 2 and d2 == 1)))
+	local dst
+	if useView then
+		dst = makeTranspose2DView(self._storage, shape[1], shape[2])
+	else
+		dst = table.create(outSize)
 		task.desynchronize()
 		local coordIn = table.create(rank, 1)
 		for flatIn = 1, inSize do
@@ -276,7 +363,7 @@ function Tensor.transpose(self: Types.Tensor, dim1: number?, dim2: number?): Typ
 				local c = coordIn[inDim]
 				flatOut0 += (c - 1) * outStrides[outDim]
 			end
-			dst[flatOut0 + 1] = src[flatIn]
+			dst[flatOut0 + 1] = self._storage[flatIn]
 		end
 		task.synchronize()
 	end
