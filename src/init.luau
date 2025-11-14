@@ -23,6 +23,7 @@ Gradien.Ops = {
 	Reduce = require("@self/ops/Reduce"),
 	Conv2d = require("@self/ops/Conv2d"),
 	Pool = require("@self/ops/Pool"),
+	Softmax = require("@self/ops/Softmax"),
 }
 Gradien.NN = {
 	Linear = require("@self/nn/Linear"),

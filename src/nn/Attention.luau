@@ -3,6 +3,7 @@ local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 local Linear = require("./Linear")
+local SoftmaxOps = require("../ops/Softmax")
 
 type TensorT = Types.Tensor
 type Module = Types.Module<TensorT, TensorT>
@@ -113,32 +114,7 @@ end
 
 local function softmaxRows(x: TensorT): TensorT
 	local rows, cols = x._shape[1], x._shape[2]
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	task.desynchronize()
-	for i = 1, rows do
-		local offset = (i - 1) * cols
-		local m = -1 / 0
-		for j = 1, cols do
-			local idx = offset + j
-			local v = x._storage[idx]
-			if v > m then
-				m = v
-			end
-		end
-		local sum = 0
-		for j = 1, cols do
-			local idx = offset + j
-			local e = math.exp(x._storage[idx] - m)
-			y._storage[idx] = e
-			sum += e
-		end
-		local inv = 1 / math.max(sum, 1e-12)
-		for j = 1, cols do
-			local idx = offset + j
-			y._storage[idx] *= inv
-		end
-	end
-	task.synchronize()
+	local y = SoftmaxOps.forward(x)
 	if not x._requiresGrad then
 		return y
 	end
