@@ -1,6 +1,8 @@
 --!optimize 2
 local Tape = require("./autograd/Tape")
 local Types = require("./Types")
+local Losses = require("./nn/Losses")
+local Metrics = require("./Metrics")
 
 local Trainer = {}
 Trainer.__index = Trainer
@@ -210,6 +212,42 @@ function Trainer:fit(makeLoader: () -> () -> (Types.Tensor?, Types.Tensor?), opt
 			optimizer = self.optimizer,
 		})
 	end
+end
+
+--@param cfg Types.TrainerConfig
+--@param opts { smoothing: number?, loss: Types.LossFn?, metric: ((Types.Tensor, any) -> number)? }?
+function Trainer.newClassification(
+	cfg: Types.TrainerConfig,
+	opts: {
+		smoothing: number?,
+		loss: Types.LossFn?,
+		metric: ((Types.Tensor, any) -> number)?,
+	}?
+)
+	opts = opts or {}
+	local smoothing = opts.smoothing
+	local lossFn = opts.loss or cfg.loss
+	if not lossFn then
+		lossFn = function(logits, target)
+			return Losses.cross_entropy_backward(logits, target, smoothing)
+		end
+	end
+	local metricFn = opts.metric or cfg.metric
+	if not metricFn then
+		metricFn = function(logits, target)
+			return Metrics.accuracy(logits, target)
+		end
+	end
+	return Trainer.new({
+		model = cfg.model,
+		optimizerFactory = cfg.optimizerFactory,
+		optimizer = cfg.optimizer,
+		loss = lossFn,
+		metric = metricFn,
+		reportEvery = cfg.reportEvery,
+		lrScheduler = cfg.lrScheduler,
+		callbacks = cfg.callbacks,
+	})
 end
 
 function Trainer:run(loader: () -> (Types.Tensor?, Types.Tensor?), opts: Types.FitOptions?)
