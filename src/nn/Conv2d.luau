@@ -4,7 +4,7 @@ local Tape = require("../autograd/Tape")
 local convop = require("../ops/Conv2d")
 local Types = require("../Types")
 
--- Conv2d module: {C_in,H,W,B} -> {C_out,H-KH+1,W-KW+1,B}, stride=1, pad=0 (for now), with bias
+-- {C_in,H,W,B} -> {C_out,H-KH+1,W-KW+1,B}, stride=1, pad=0 (for now), with bias
 return function(C_in: number, C_out: number, KH: number, KW: number): Types.Module<Types.Tensor, Types.Tensor>
 	local W = Tensor.zeros({ C_out, C_in, KH, KW }, "f64", true)
 	local b = Tensor.zeros({ C_out, 1 }, "f64", true)
@@ -14,26 +14,26 @@ return function(C_in: number, C_out: number, KH: number, KW: number): Types.Modu
 	end
 	self.train = function(_) end
 	self.forward = function(_, x: Types.Tensor): Types.Tensor
-		local y = convop(x, W)
+		local out = convop(x, W)
 		-- add bias
 		task.desynchronize()
-		local F, Ho, Wo, B = y._shape[1], y._shape[2], y._shape[3], y._shape[4]
+		local F, Ho, Wo, B = out._shape[1], out._shape[2], out._shape[3], out._shape[4]
 		for f = 1, F do
 			local bf = b._storage[f]
 			for i = 1, Ho do
 				for j = 1, Wo do
 					for bb = 1, B do
 						local yi = (((f - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + bb
-						y._storage[yi] = y._storage[yi] + bf
+						out._storage[yi] += bf
 					end
 				end
 			end
 		end
 		task.synchronize()
-		if not y._requiresGrad then
-			return y
+		if not out._requiresGrad then
+			return out
 		end
-		return Tape.makeNode(y, { y, b }, function(gy: Types.Tensor)
+		return Tape.makeNode(out, { out, b }, function(gy: Types.Tensor)
 			if b._requiresGrad then
 				b._grad = b._grad or Tensor.zeros(b._shape, b._dtype, false)
 				task.desynchronize()
