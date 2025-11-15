@@ -2,29 +2,10 @@
 local Tensor = require("../Tensor")
 local Types = require("../Types")
 
-local profiler = {
-	enabled = false,
-	total = 0,
-	calls = 0,
-	last = 0,
-	max = 0,
-}
-
-local function recordProfile(startTime: number?)
-	if not profiler.enabled or not startTime then
-		return
-	end
-	local dt = os.clock() - startTime
-	profiler.total += dt
-	profiler.calls += 1
-	profiler.last = dt
-	if dt > profiler.max then
-		profiler.max = dt
-	end
-end
-
+--@param A Tensor
+--@param B Tensor
+--@return Tensor
 local function matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
-	local profStart = profiler.enabled and os.clock() or nil
 	local M, K = A._shape[1], A._shape[2]
 	local K2, N = B._shape[1], B._shape[2]
 	assert(K == K2, "matmul: inner dims mismatch")
@@ -57,36 +38,9 @@ local function matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 		end
 	end
 	task.synchronize()
-	recordProfile(profStart)
 	return C
-end
-
-local function enableProfiling(flag: boolean)
-	profiler.enabled = flag
-end
-
-local function resetProfiling()
-	profiler.total = 0
-	profiler.calls = 0
-	profiler.last = 0
-	profiler.max = 0
-end
-
-local function getProfile()
-	local avg = profiler.calls > 0 and profiler.total / profiler.calls or 0
-	return {
-		enabled = profiler.enabled,
-		calls = profiler.calls,
-		totalSeconds = profiler.total,
-		avgSeconds = avg,
-		lastSeconds = profiler.last,
-		maxSeconds = profiler.max,
-	}
 end
 
 return {
 	matmul = matmul,
-	enableProfiling = enableProfiling,
-	resetProfiling = resetProfiling,
-	getProfile = getProfile,
 }
