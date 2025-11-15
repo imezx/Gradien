@@ -141,16 +141,17 @@ end
 --@param makeLoader () -> () -> (Tensor?, Tensor?)
 --@param opts { epochs: number?, stepsPerEpoch: number?, onMetric: ((number, number, number) -> ())? }
 function Trainer:fit(makeLoader: () -> () -> (Types.Tensor?, Types.Tensor?), opts: Types.FitOptions?)
-	opts = opts or {}
-	local epochs = opts.epochs or self.epoch or 1
-	local stepsPerEpoch = opts.stepsPerEpoch
-	local onMetric = opts.onMetric
+	local fitOpts = (opts or {}) :: Types.FitOptions
+	local epochs = fitOpts.epochs or self.epoch or 1
+	local stepsPerEpoch = fitOpts.stepsPerEpoch
+	local onMetric = fitOpts.onMetric
 
 	for epoch = 1, epochs do
 		self.epoch = epoch
 		local loader = makeLoader()
 		local lastLoss: number? = nil
 		local lastMetric: number? = nil
+		local stepsThisEpoch = 0
 
 		while true do
 			local X, Y = loader()
@@ -158,12 +159,23 @@ function Trainer:fit(makeLoader: () -> () -> (Types.Tensor?, Types.Tensor?), opt
 				break
 			end
 			self.step += 1
+			stepsThisEpoch += 1
 
 			self.optimizer:zeroGrad()
 			local out = self.model:forward(X)
 			local lossValue, grad = self.loss(out, Y)
 			Tape.backwardFrom(out, grad)
 			self.optimizer:step()
+			if self.lrScheduler then
+				local newLr = self.lrScheduler(self.step)
+				if type(newLr) == "number" then
+					if type(self.optimizer.setLr) == "function" then
+						self.optimizer:setLr(newLr)
+					elseif type(self.optimizer.setLR) == "function" then
+						self.optimizer:setLR(newLr)
+					end
+				end
+			end
 
 			lastLoss = lossValue
 			local metricValue: number? = nil
@@ -198,7 +210,7 @@ function Trainer:fit(makeLoader: () -> () -> (Types.Tensor?, Types.Tensor?), opt
 				optimizer = self.optimizer,
 			})
 
-			if stepsPerEpoch and self.step >= stepsPerEpoch then
+			if stepsPerEpoch and stepsThisEpoch >= stepsPerEpoch then
 				break
 			end
 		end
@@ -224,15 +236,19 @@ function Trainer.newClassification(
 		metric: ((Types.Tensor, any) -> number)?,
 	}?
 )
-	opts = opts or {}
-	local smoothing = opts.smoothing
-	local lossFn = opts.loss or cfg.loss
+	local cfgOpts = (opts or {}) :: {
+		smoothing: number?,
+		loss: Types.LossFn?,
+		metric: ((Types.Tensor, any) -> number)?,
+	}
+	local smoothing = cfgOpts.smoothing
+	local lossFn = cfgOpts.loss or cfg.loss
 	if not lossFn then
 		lossFn = function(logits, target)
 			return Losses.cross_entropy_backward(logits, target, smoothing)
 		end
 	end
-	local metricFn = opts.metric or cfg.metric
+	local metricFn = cfgOpts.metric or cfg.metric
 	if not metricFn then
 		metricFn = function(logits, target)
 			return Metrics.accuracy(logits, target)
