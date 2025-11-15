@@ -81,13 +81,20 @@ function M.prf1(pred: Types.Tensor, target: Types.Tensor, C: number): (number, n
 		B = #yhat
 	end
 	local tpC: { number }, fpC: { number }, fnC: { number } = {}, {}, {}
+	for c = 1, C do
+		tpC[c] = 0
+		fpC[c] = 0
+		fnC[c] = 0
+	end
 	for j = 1, B do
 		local p, t = yhat[j], target[j]
-		if p == t then
-			tpC[p] += 1
-		else
-			fpC[p] += 1
-			fnC[t] += 1
+		if p and t and p >= 1 and p <= C and t >= 1 and t <= C then
+			if p == t then
+				tpC[p] += 1
+			else
+				fpC[p] += 1
+				fnC[t] += 1
+			end
 		end
 	end
 	local sumP, sumR, sumF = 0, 0, 0
@@ -125,7 +132,10 @@ function M.confusion(pred: Types.Tensor, target: Types.Tensor, C: number): { { n
 	end
 	local mat: { { number } } = {}
 	for i = 1, C do
-		mat[i] = {}
+		mat[i] = table.create(C, 0)
+		for j = 1, C do
+			mat[i][j] = 0
+		end
 	end
 	for j = 1, B do
 		local t, p = target[j], yhat[j]
