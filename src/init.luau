@@ -18,6 +18,12 @@ Gradien.Tensor = require("@self/Tensor")
 Gradien.Debug = require("@self/Debug")
 
 Gradien.Models = {
+	MLP = require("@self/models/MLP"),
+	ResMLP = require("@self/models/ResMLP"),
+	ConvNet = require("@self/models/ConvNet"),
+	TransformerEncoder = require("@self/models/TransformerEncoder"),
+	SequenceClassifier = require("@self/models/SequenceClassifier"),
+	AutoEncoder = require("@self/models/AutoEncoder"),
 }
 Gradien.Ops = {
 	Math = require("@self/ops/Math"),
