@@ -1,6 +1,19 @@
 --!optimize 2
 local Tensor = require("../Tensor")
 
+local function ensureBuffer(buf: { number }?, dim: number)
+	if not buf or #buf ~= dim then
+		return table.create(dim, 0)
+	end
+	return buf
+end
+
+local function copyStorage(src: { number }, dst: { number }, dim: number)
+	for i = 1, dim do
+		dst[i] = src[i]
+	end
+end
+
 return function(capacity: number, alpha: number, beta0: number)
 	alpha = alpha or 0.6
 	beta0 = beta0 or 0.4
@@ -12,6 +25,8 @@ return function(capacity: number, alpha: number, beta0: number)
 	end
 	local tree = table.create(2 * N, 0)
 	local maxPrio = 1
+	local stateDim: number? = nil
+	local stateDType: string? = nil
 
 	local function updateLeaf(i, p)
 		task.desynchronize()
@@ -23,9 +38,6 @@ return function(capacity: number, alpha: number, beta0: number)
 			idx //= 2
 		end
 		task.synchronize()
-	end
-	local function total()
-		return tree[1]
 	end
 	local function sampleOne(u)
 		task.desynchronize()
@@ -42,10 +54,23 @@ return function(capacity: number, alpha: number, beta0: number)
 		task.synchronize()
 		return idx - N + 1
 	end
-
 	return {
 		push = function(_, t)
-			S[pos], A[pos], R[pos], NS[pos], D[pos] = t.state, t.action, t.reward, t.nextState, t.done
+			assert(t.state and t.nextState, "prio replay: state and nextState required")
+			if not stateDim then
+				stateDim = #t.state._storage
+				stateDType = t.state._dtype
+			end
+			local sd = stateDim
+			local stateBuf = ensureBuffer(S[pos], sd)
+			local nextStateBuf = ensureBuffer(NS[pos], sd)
+			task.desynchronize()
+			copyStorage(t.state._storage, stateBuf, sd)
+			copyStorage(t.nextState._storage, nextStateBuf, sd)
+			task.synchronize()
+			S[pos] = stateBuf
+			NS[pos] = nextStateBuf
+			A[pos], R[pos], D[pos] = t.action, t.reward, t.done
 			updateLeaf(pos, maxPrio ^ alpha)
 			pos += 1
 			if pos > capacity then
@@ -60,13 +85,16 @@ return function(capacity: number, alpha: number, beta0: number)
 		end,
 		sample = function(_, n)
 			assert(size >= n, "prio replay: not enough samples")
+			assert(stateDim, "prio replay: buffer is empty")
 			task.desynchronize()
-			local sd = S[1]._shape[1]
-			local SX = Tensor.zeros({ sd, n })
-			local NSX = Tensor.zeros({ sd, n })
+			local sd = stateDim
+			local dtype = stateDType
+			local SX = Tensor.zeros({ sd, n }, dtype, false)
+			local NSX = Tensor.zeros({ sd, n }, dtype, false)
 			local AA, RR, DD = table.create(n, 1), table.create(n, 0), table.create(n, false)
 			local idxs, w = table.create(n, 1), table.create(n, 0.0)
-			local segment = total() / n
+			local tot = tree[1]
+			local segment = tot / n
 			for j = 1, n do
 				local u = (j - 1) * segment + math.random() * segment
 				local i = sampleOne(u)
@@ -75,12 +103,14 @@ return function(capacity: number, alpha: number, beta0: number)
 				end
 				idxs[j] = i
 				local p = tree[N + i - 1]
-				local P = p / total()
+				local P = p / tot
 				w[j] = ((size * P) ^ -beta0)
 				AA[j], RR[j], DD[j] = A[i], R[i], D[i]
+				local sArr = S[i]
+				local nsArr = NS[i]
 				for k = 1, sd do
-					SX._storage[(k - 1) * n + j] = S[i]._storage[k]
-					NSX._storage[(k - 1) * n + j] = NS[i]._storage[k]
+					SX._storage[(k - 1) * n + j] = sArr[k]
+					NSX._storage[(k - 1) * n + j] = nsArr[k]
 				end
 			end
 			local maxw = 0
