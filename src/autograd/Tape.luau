@@ -104,18 +104,31 @@ end
 
 function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 	task.desynchronize()
-	local stack = { { y, grad } }
-	while #stack > 0 do
-		local node, g = table.unpack(table.remove(stack) :: { Types.Tensor })
-		if node._backprop then
-			node._backprop(g)
+	local order: { Types.Tensor } = {}
+	local visited = {}
+	local function dfs(node: Types.Tensor)
+		if visited[node] then
+			return
 		end
+		visited[node] = true
 		if node._parents then
 			for _, p in node._parents do
-				if p._backprop or p._parents then
-					table.insert(stack, { p, p._grad or Tensor.zeros(p._shape) })
-				end
+				dfs(p)
 			end
+		end
+		table.insert(order, node)
+	end
+	dfs(y)
+	y._grad = grad
+	for idx = #order, 1, -1 do
+		local node = order[idx]
+		local g = node._grad
+		if not g then
+			g = Tensor.zeros(node._shape)
+			node._grad = g
+		end
+		if node._backprop then
+			node._backprop(g)
 		end
 	end
 	task.synchronize()
