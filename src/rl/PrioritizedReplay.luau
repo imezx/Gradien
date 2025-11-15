@@ -9,9 +9,8 @@ local function ensureBuffer(buf: { number }?, dim: number)
 end
 
 local function copyStorage(src: { number }, dst: { number }, dim: number)
-	for i = 1, dim do
-		dst[i] = src[i]
-	end
+	table.move(src, 1, dim, 1, dst)
+	return
 end
 
 return function(capacity: number, alpha: number, beta0: number)

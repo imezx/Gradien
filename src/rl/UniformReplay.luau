@@ -23,9 +23,8 @@ local function ensureBuffer(buf: { number }?, dim: number)
 end
 
 local function copyStorage(src: { number }, dst: { number }, dim: number)
-	for i = 1, dim do
-		dst[i] = src[i]
-	end
+	table.move(src, 1, dim, 1, dst)
+	return
 end
 
 ---@param capacity integer
@@ -67,8 +66,12 @@ function UR:push(t)
 	self.D[i] = t.done and true or false
 
 	self.head += 1
-	if self.head > self.capacity then self.head = 1 end
-	if self.size_ < self.capacity then self.size_ += 1 end
+	if self.head > self.capacity then
+		self.head = 1
+	end
+	if self.size_ < self.capacity then
+		self.size_ += 1
+	end
 end
 
 function UR:size(): number
@@ -78,14 +81,18 @@ end
 function UR:clear()
 	self.size_, self.head = 0, 1
 	self.stateDim, self.stateDType = nil, nil
-	table.clear(self.S); table.clear(self.A); table.clear(self.R); table.clear(self.NS); table.clear(self.D)
+	table.clear(self.S)
+	table.clear(self.A)
+	table.clear(self.R)
+	table.clear(self.NS)
+	table.clear(self.D)
 end
 
 function UR:canSample(B: number): boolean
 	return self.size_ >= B
 end
 
-local function packBatch(self, idxs: {number})
+local function packBatch(self, idxs: { number })
 	local B = #idxs
 	assert(B > 0, "UniformReplay: empty index list")
 	assert(self.stateDim, "UniformReplay: buffer is empty")
@@ -113,7 +120,9 @@ local function packBatch(self, idxs: {number})
 
 	-- weights = 1 (no importance correction needed for uniform)
 	local w = table.create(B, 1.0)
-	for j = 1, B do w[j] = 1.0 end
+	for j = 1, B do
+		w[j] = 1.0
+	end
 
 	return { S = S, A = A, R = R, NS = NS, D = D, indices = idxs, weights = w }
 end
