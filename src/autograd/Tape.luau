@@ -104,24 +104,25 @@ end
 
 function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 	task.desynchronize()
-	local order: { Types.Tensor } = {}
-	local visited = {}
-	local function dfs(node: Types.Tensor)
-		if visited[node] then
-			return
-		end
-		visited[node] = true
-		if node._parents then
-			for _, p in node._parents do
-				dfs(p)
+	local pending: { [Types.Tensor]: number } = {}
+	local visitStack = { y }
+	local seen = {}
+	while next(visitStack) do
+		local node = table.remove(visitStack)
+		if not seen[node] then
+			seen[node] = true
+			if node._parents then
+				for _, parent in node._parents do
+					pending[parent] = (pending[parent] or 0) + 1
+					table.insert(visitStack, parent)
+				end
 			end
 		end
-		table.insert(order, node)
 	end
-	dfs(y)
 	y._grad = grad
-	for idx = #order, 1, -1 do
-		local node = order[idx]
+	local ready = { y }
+	while next(ready) do
+		local node = table.remove(ready)
 		local g = node._grad
 		if not g then
 			g = Tensor.zeros(node._shape)
@@ -130,7 +131,28 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 		if node._backprop then
 			node._backprop(g)
 		end
+		if node._parents then
+			for _, parent in node._parents do
+				local remaining = pending[parent]
+				if remaining then
+					remaining -= 1
+					if remaining == 0 then
+						pending[parent] = nil
+						if parent._backprop or parent._parents then
+							table.insert(ready, parent)
+						end
+					else
+						pending[parent] = remaining
+					end
+				else
+					if parent._backprop or parent._parents then
+						table.insert(ready, parent)
+					end
+				end
+			end
+		end
 	end
+
 	task.synchronize()
 end
 
