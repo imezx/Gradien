@@ -166,11 +166,8 @@ end
 
 function Tape.noGrad(fn: () -> ()): ()
 	gradEnabled = false
-	local ok, err = pcall(fn)
+	fn()
 	gradEnabled = true
-	if not ok then
-		error(err)
-	end
 end
 
 function Tape.grad(f: (...any) -> Types.Tensor, inputs: { Types.Tensor }): { Types.Tensor? }
