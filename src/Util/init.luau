@@ -76,5 +76,6 @@ Util.Hooks = require("@self/Hooks")
 Util.Parallel = require("@self/Parallel")
 Util.GradStats = require("@self/GradStats")
 Util.Buffer = require("@self/Buffer")
+Util.Profiler = require("@self/Profiler")
 
 return Util

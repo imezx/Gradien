@@ -123,4 +123,35 @@ export type Trainer = {
 	bestMetric: number?,
 }
 
+export type Sample = {
+	name: string,
+	total: number,
+	self: number,
+	count: number,
+	avg: number,
+	selfAvg: number,
+	min: number,
+	max: number,
+	last: number,
+	percent: number,
+}
+
+export type Stat = {
+	name: string,
+	total: number,
+	selfTime: number,
+	count: number,
+	min: number,
+	max: number,
+	last: number,
+}
+
+export type Marker = {
+	name: string,
+	start: number,
+	child: number,
+}
+
+export type Callable = (...any) -> ...any
+
 return nil
