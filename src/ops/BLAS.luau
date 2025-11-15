@@ -14,12 +14,14 @@ local function matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	local C = Tensor.zeros({ M, N }, A._dtype, A._requiresGrad or B._requiresGrad)
 	local as, bs, cs = A._storage, B._storage, C._storage
 	for i = 1, M do
+		local offset1 = (i - 1) * K
+		local offset2 = (i - 1) * N
 		for j = 1, N do
 			local acc = 0
 			for k = 1, K do
-				acc += as[(i - 1) * K + k] * bs[(k - 1) * N + j]
+				acc += as[offset1 + k] * bs[(k - 1) * N + j]
 			end
-			cs[(i - 1) * N + j] = acc
+			cs[offset2 + j] = acc
 		end
 	end
 	task.synchronize()
