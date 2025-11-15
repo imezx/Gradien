@@ -1,0 +1,18 @@
+[package]
+name = "imezx/gradien"
+version = "1.4.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+license = "LGPL-3.0"
+authors = ["EternityDev"]
+exclude = ["**"]
+include = [
+    "default.project.json",
+    "src",
+	"src/**",
+    "LICENSE",
+    "wally.toml",
+]
+description = "A strictly-typed, optimized parallel-first ML & DL library for Roblox"
+
+[dependencies]
