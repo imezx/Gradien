@@ -45,7 +45,7 @@ function Tape.relu(x: Types.Tensor): Types.Tensor
 		if x._requiresGrad then
 			task.desynchronize()
 			if not x._grad then
-				x._grad = Tensor.zeros(x._shape)
+				x._grad = Tensor.zeros(x._shape, x._dtype)
 			end
 			if x._grad then
 				for i = 1, #x._grad._storage do
@@ -68,33 +68,35 @@ function Tape.matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 		local _, N = B._shape[1], B._shape[2]
 		if A._requiresGrad then
 			if not A._grad then
-				A._grad = Tensor.zeros({ M, K })
+				A._grad = Tensor.zeros({ M, K }, A._dtype)
 			end
-			for i = 1, M do
-				for k = 1, K do
-					local acc = 0
-					for j = 1, N do
-						acc += gY._storage[(i - 1) * N + j] * B._storage[(k - 1) * N + j]
-					end
-					if A._grad then
-						A._grad._storage[(i - 1) * K + k] += acc
-					end
+			local BT
+			Tape.noGrad(function()
+				BT = Tensor.transpose(B)
+			end)
+			local dA = BLAS.matmul(gY, BT)
+			if A._grad then
+				local dst = A._grad._storage
+				local src = dA._storage
+				for idx = 1, #dst do
+					dst[idx] += src[idx]
 				end
 			end
 		end
 		if B._requiresGrad then
 			if not B._grad then
-				B._grad = Tensor.zeros({ K, N })
+				B._grad = Tensor.zeros({ K, N }, B._dtype)
 			end
-			for k = 1, K do
-				for j = 1, N do
-					local acc = 0
-					for i = 1, M do
-						acc += A._storage[(i - 1) * K + k] * gY._storage[(i - 1) * N + j]
-					end
-					if B._grad then
-						B._grad._storage[(k - 1) * N + j] += acc
-					end
+			local AT
+			Tape.noGrad(function()
+				AT = Tensor.transpose(A)
+			end)
+			local dB = BLAS.matmul(AT, gY)
+			if B._grad then
+				local dst = B._grad._storage
+				local src = dB._storage
+				for idx = 1, #dst do
+					dst[idx] += src[idx]
 				end
 			end
 		end
@@ -113,8 +115,10 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 			seen[node] = true
 			if node._parents then
 				for _, parent in node._parents do
-					pending[parent] = (pending[parent] or 0) + 1
-					table.insert(visitStack, parent)
+					if parent._requiresGrad then
+						pending[parent] = (pending[parent] or 0) + 1
+						table.insert(visitStack, parent)
+					end
 				end
 			end
 		end
@@ -123,30 +127,34 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 	local ready = { y }
 	while next(ready) do
 		local node = table.remove(ready)
-		local g = node._grad
-		if not g then
-			g = Tensor.zeros(node._shape)
-			node._grad = g
-		end
-		if node._backprop then
-			node._backprop(g)
-		end
-		if node._parents then
-			for _, parent in node._parents do
-				local remaining = pending[parent]
-				if remaining then
-					remaining -= 1
-					if remaining == 0 then
-						pending[parent] = nil
-						if parent._backprop or parent._parents then
-							table.insert(ready, parent)
+		if node._requiresGrad then
+			local g = node._grad
+			if not g then
+				g = Tensor.zeros(node._shape, node._dtype)
+				node._grad = g
+			end
+			if node._backprop then
+				node._backprop(g)
+			end
+			if node._parents then
+				for _, parent in node._parents do
+					if parent._requiresGrad then
+						local remaining = pending[parent]
+						if remaining then
+							remaining -= 1
+							if remaining == 0 then
+								pending[parent] = nil
+								if parent._backprop or parent._parents then
+									table.insert(ready, parent)
+								end
+							else
+								pending[parent] = remaining
+							end
+						else
+							if parent._backprop or parent._parents then
+								table.insert(ready, parent)
+							end
 						end
-					else
-						pending[parent] = remaining
-					end
-				else
-					if parent._backprop or parent._parents then
-						table.insert(ready, parent)
 					end
 				end
 			end
