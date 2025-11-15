@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 --@Eternity_Devs
---from Warp lib
+--from Warp lib & extended
 local Buffer = {}
 Buffer.__index = Buffer
 
@@ -17,7 +17,41 @@ local readi32 = buffer.readi32
 local readf32 = buffer.readf32
 local readf64 = buffer.readf64
 local readstring = buffer.readstring
+local writeu8 = buffer.writeu8
+local writei32 = buffer.writei32
+local writef32 = buffer.writef32
+local writef64 = buffer.writef64
 local len = buffer.len
+local create = buffer.create
+
+local dtypeInfo = {
+	f64 = {
+		bytes = 8,
+		read = readf64,
+		write = writef64,
+	},
+	f32 = {
+		bytes = 4,
+		read = readf32,
+		write = writef32,
+	},
+	i32 = {
+		bytes = 4,
+		read = readi32,
+		write = writei32,
+	},
+	u8 = {
+		bytes = 1,
+		read = readu8,
+		write = writeu8,
+	},
+}
+
+local function ensureDType(dtype: string?)
+	local info = dtypeInfo[dtype or "f64"]
+	assert(info, `Buffer: unsupported dtype {dtype}`)
+	return info
+end
 
 local function readValue(b: buffer, position: number, ref: { any }?): (any, number)
 	local typeByte = readi8(b, position)
@@ -113,8 +147,8 @@ local function readValue(b: buffer, position: number, ref: { any }?): (any, numb
 	elseif typeByte == 13 then -- Color3
 		local r = readu8(b, position)
 		local g = readu8(b, position + 1)
-		local b = readu8(b, position + 2)
-		return Color3.fromRGB(r, g, b), position + 3
+		local channelB = readu8(b, position + 2)
+		return Color3.fromRGB(r, g, channelB), position + 3
 	end
 	error(`Unsupported type marker: {typeByte}`)
 end
@@ -147,6 +181,58 @@ function Buffer.read(b: buffer, ref: { any }?): any?
 	end
 	ref = nil
 	return result
+end
+
+function Buffer.writeDenseArray(data: { number }, dtype: string?, existing: buffer?): buffer
+	local info = ensureDType(dtype)
+	local count = #data
+	local totalBytes = count * info.bytes
+	local buf = existing
+	if not buf or len(buf) ~= totalBytes then
+		buf = create(totalBytes)
+	end
+	local offset = 0
+	for i = 1, count do
+		info.write(buf, offset, data[i])
+		offset += info.bytes
+	end
+	return buf
+end
+
+function Buffer.readDenseArray(buf: buffer, dtype: string?, out: { number }?): { number }
+	local info = ensureDType(dtype)
+	local bytes = info.bytes
+	local count = math.floor(len(buf) / bytes)
+	local dest = out
+	if not dest or #dest ~= count then
+		dest = table.create(count)
+	end
+	local offset = 0
+	for i = 1, count do
+		dest[i] = info.read(buf, offset)
+		offset += bytes
+	end
+	return dest
+end
+
+function Buffer.copyDenseToColumn(
+	buf: buffer,
+	dtype: string?,
+	target: { number },
+	column: number,
+	batch: number,
+	length: number?
+)
+	local info = ensureDType(dtype)
+	local bytes = info.bytes
+	local elements = length or math.floor(len(buf) / bytes)
+	local offset = 0
+	local idx = column
+	for _ = 1, elements do
+		target[idx] = info.read(buf, offset)
+		offset += bytes
+		idx += batch
+	end
 end
 
 return Buffer :: typeof(Buffer)

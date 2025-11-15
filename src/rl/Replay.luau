@@ -1,17 +1,6 @@
 --!optimize 2
 local Tensor = require("../Tensor")
-
-local function ensureBuffer(buf: { number }?, dim: number)
-	if not buf or #buf ~= dim then
-		return table.create(dim, 0)
-	end
-	return buf
-end
-
-local function copyStorage(src: { number }, dst: { number }, dim: number)
-	table.move(src, 1, dim, 1, dst)
-	return
-end
+local Buffer = require("../Util/Buffer")
 
 return function(capacity: number)
 	local size, pos = 0, 1
@@ -29,15 +18,8 @@ return function(capacity: number)
 				stateDim = #srcState._storage
 				stateDType = srcState._dtype
 			end
-			local sd = stateDim
-			local stateBuf = ensureBuffer(S[pos], sd)
-			local nextStateBuf = ensureBuffer(NS[pos], sd)
-			task.desynchronize()
-			copyStorage(srcState._storage, stateBuf, sd)
-			copyStorage(srcNextState._storage, nextStateBuf, sd)
-			task.synchronize()
-			S[pos] = stateBuf
-			NS[pos] = nextStateBuf
+			S[pos] = Buffer.writeDenseArray(srcState._storage, stateDType, S[pos])
+			NS[pos] = Buffer.writeDenseArray(srcNextState._storage, stateDType, NS[pos])
 			A[pos], R[pos], D[pos] = t.action, t.reward, t.done
 			pos += 1
 			if pos > capacity then
@@ -62,12 +44,8 @@ return function(capacity: number)
 			for j = 1, n do
 				local i = math.random(1, size)
 				AA[j], RR[j], DD[j] = A[i], R[i], D[i]
-				local sArr = S[i]
-				local nsArr = NS[i]
-				for k = 1, sd do
-					SX._storage[(k - 1) * n + j] = sArr[k]
-					NSX._storage[(k - 1) * n + j] = nsArr[k]
-				end
+				Buffer.copyDenseToColumn(S[i], dtype, SX._storage, j, n, sd)
+				Buffer.copyDenseToColumn(NS[i], dtype, NSX._storage, j, n, sd)
 			end
 			task.synchronize()
 			return { S = SX, A = AA, R = RR, NS = NSX, D = DD }

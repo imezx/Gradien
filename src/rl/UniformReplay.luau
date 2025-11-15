@@ -1,5 +1,6 @@
 --!optimize 2
 local Tensor = require("../Tensor")
+local Buffer = require("../Util/Buffer")
 
 ---@class UniformReplay
 ---@field capacity integer
@@ -14,18 +15,6 @@ local Tensor = require("../Tensor")
 ---@field stateDType string?
 local UR = {}
 UR.__index = UR
-
-local function ensureBuffer(buf: { number }?, dim: number)
-	if not buf or #buf ~= dim then
-		return table.create(dim, 0)
-	end
-	return buf
-end
-
-local function copyStorage(src: { number }, dst: { number }, dim: number)
-	table.move(src, 1, dim, 1, dst)
-	return
-end
 
 ---@param capacity integer
 ---@return UniformReplay
@@ -51,18 +40,11 @@ function UR:push(t)
 		self.stateDim = #stateTensor._storage
 		self.stateDType = stateTensor._dtype
 	end
-	local sd = self.stateDim
 	local i = self.head
-	local stateBuf = ensureBuffer(self.S[i], sd)
-	local nextStateBuf = ensureBuffer(self.NS[i], sd)
-	task.desynchronize()
-	copyStorage(stateTensor._storage, stateBuf, sd)
-	copyStorage(nextStateTensor._storage, nextStateBuf, sd)
-	task.synchronize()
-	self.S[i] = stateBuf
+	self.S[i] = Buffer.writeDenseArray(stateTensor._storage, self.stateDType, self.S[i])
 	self.A[i] = t.action
 	self.R[i] = t.reward
-	self.NS[i] = nextStateBuf
+	self.NS[i] = Buffer.writeDenseArray(nextStateTensor._storage, self.stateDType, self.NS[i])
 	self.D[i] = t.done and true or false
 
 	self.head += 1
@@ -108,13 +90,9 @@ local function packBatch(self, idxs: { number })
 	task.desynchronize()
 	for j = 1, B do
 		local k = idxs[j]
-		local s = self.S[k]
-		local ns = self.NS[k]
 		A[j], R[j], D[j] = self.A[k], self.R[k], self.D[k]
-		for r = 1, sd do
-			S._storage[(r - 1) * B + j] = s[r]
-			NS._storage[(r - 1) * B + j] = ns[r]
-		end
+		Buffer.copyDenseToColumn(self.S[k], dtype, S._storage, j, B, sd)
+		Buffer.copyDenseToColumn(self.NS[k], dtype, NS._storage, j, B, sd)
 	end
 	task.synchronize()
 
