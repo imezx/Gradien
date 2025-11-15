@@ -4,10 +4,10 @@ local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 
 -- Affine layer y = W x + b
--- @param inF  number  (fan-in)
--- @param outF number  (fan-out)
--- @param init (fanIn:number, fanOut:number) -> number
--- @return Types.Module
+--@param inF  number  (fan-in)
+--@param outF number  (fan-out)
+--@param init (fanIn:number, fanOut:number) -> number
+--@return Types.Module
 return function(
 	inF: number,
 	outF: number,
@@ -33,9 +33,9 @@ return function(
 		b = b,
 		-- x: {inF,B}  -> y: {outF,B}
 		forward = function(_, x: Types.Tensor): Types.Tensor
-			task.desynchronize()
 			local out = Tape.matmul(W, x)
 			local B = x._shape[2]
+			task.desynchronize()
 			for i = 1, outF do
 				local bi = b._storage[i]
 				for j = 1, B do
