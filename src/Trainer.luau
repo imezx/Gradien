@@ -132,7 +132,7 @@ function Trainer.new(cfg: Types.TrainerConfig)
 		callbacks = asArrayCallbacks(cfg.callbacks, {}),
 		bestMetric = nil,
 		step = 0,
-		epoch = 0,
+		epoch = 1,
 	}, Trainer)
 
 	return self
