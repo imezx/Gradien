@@ -1,6 +1,5 @@
 --!optimize 2
 local Tensor = require("../Tensor")
-local Reduce = require("../ops/Reduce")
 local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 
@@ -14,8 +13,8 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 	momentum = momentum or 0.1
 	local gamma = Tensor.fromArray(table.create(D, 1), { D, 1 }, "f64", true)
 	local beta = Tensor.zeros({ D, 1 }, "f64", true)
-	local runningMean = Tensor.zeros({ 1, 1 })
-	local runningVar = Tensor.fromArray({ 1 }, { 1, 1 })
+	local runningMean = Tensor.zeros({ D, 1 })
+	local runningVar = Tensor.fromArray(table.create(D, 1), { D, 1 })
 	return {
 		_train = true,
 		train = function(self, mode: boolean)
@@ -24,41 +23,65 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 		forward = function(self, x: Types.Tensor): Types.Tensor
 			local D_, B = x._shape[1], x._shape[2]
 			assert(D_ == D, "BN1d D mismatch")
-			task.desynchronize()
-			local mu = Reduce.meanCols(x)
 			local xc = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-			for j = 1, B do
-				local m = mu._storage[j]
-				for i = 1, D do
-					xc._storage[(i - 1) * B + j] = x._storage[(i - 1) * B + j] - m
-				end
-			end
-			task.synchronize()
-			local var = Reduce.meanCols((function()
+			local meanUsed: Types.Tensor
+			local varUsed: Types.Tensor
+			if self._train then
+				meanUsed = Tensor.zeros({ D, 1 })
+				varUsed = Tensor.zeros({ D, 1 })
 				task.desynchronize()
-				local sq = Tensor.zeros(x._shape)
-				for k = 1, #xc._storage do
-					sq._storage[k] = xc._storage[k] ^ 2
+				for i = 1, D do
+					local sum = 0
+					local base = (i - 1) * B
+					for j = 1, B do
+						sum += x._storage[base + j]
+					end
+					local mean = sum / B
+					meanUsed._storage[i] = mean
+					local vsum = 0
+					for j = 1, B do
+						local idx = base + j
+						local centered = x._storage[idx] - mean
+						xc._storage[idx] = centered
+						vsum += centered * centered
+					end
+					varUsed._storage[i] = vsum / B
 				end
 				task.synchronize()
-				return sq
-			end)())
-			task.desynchronize()
-			if self._train then
-				runningMean._storage[1] = (1 - (momentum :: number)) * runningMean._storage[1]
-					+ (momentum :: number) * mu._storage[1]
-				runningVar._storage[1] = (1 - (momentum :: number)) * runningVar._storage[1]
-					+ (momentum :: number) * var._storage[1]
-			end
-			local inv = Tensor.zeros({ 1, B })
-			for j = 1, B do
-				inv._storage[j] = 1 / math.sqrt(var._storage[j] + (eps :: number))
-			end
-			local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-			for j = 1, B do
+				task.desynchronize()
 				for i = 1, D do
-					local idx = (i - 1) * B + j
-					y._storage[idx] = gamma._storage[i] * xc._storage[idx] * inv._storage[j] + beta._storage[i]
+					runningMean._storage[i] = (1 - (momentum :: number)) * runningMean._storage[i]
+						+ (momentum :: number) * meanUsed._storage[i]
+					runningVar._storage[i] = (1 - (momentum :: number)) * runningVar._storage[i]
+						+ (momentum :: number) * varUsed._storage[i]
+				end
+				task.synchronize()
+			else
+				meanUsed = runningMean
+				varUsed = runningVar
+				task.desynchronize()
+				for i = 1, D do
+					local base = (i - 1) * B
+					local mean = meanUsed._storage[i]
+					for j = 1, B do
+						local idx = base + j
+						xc._storage[idx] = x._storage[idx] - mean
+					end
+				end
+				task.synchronize()
+			end
+			local inv: Types.Tensor = Tensor.zeros({ D, 1 })
+			local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			task.desynchronize()
+			for i = 1, D do
+				local invVal = 1 / math.sqrt(varUsed._storage[i] + (eps :: number))
+				inv._storage[i] = invVal
+				local base = (i - 1) * B
+				local g = gamma._storage[i]
+				local b = beta._storage[i]
+				for j = 1, B do
+					local idx = base + j
+					y._storage[idx] = g * xc._storage[idx] * invVal + b
 				end
 			end
 			task.synchronize()
@@ -72,7 +95,7 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 						local acc = 0
 						for j = 1, B do
 							local idx = (i - 1) * B + j
-							acc += gy._storage[idx] * xc._storage[idx] * inv._storage[j]
+							acc += gy._storage[idx] * xc._storage[idx] * inv._storage[i]
 						end
 						gamma._grad._storage[i] += acc
 					end
@@ -98,10 +121,14 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 					if not x._grad then
 						x._grad = Tensor.zeros(x._shape)
 					end
-					for j = 1, B do
-						for i = 1, D do
-							local idx = (i - 1) * B + j
-							x._grad._storage[idx] += gy._storage[idx] * gamma._storage[i] * inv._storage[j]
+					local xGrad = x._grad :: Types.Tensor
+					for i = 1, D do
+						local base = (i - 1) * B
+						local g = gamma._storage[i]
+						local invI = inv._storage[i]
+						for j = 1, B do
+							local idx = base + j
+							xGrad._storage[idx] += gy._storage[idx] * g * invI
 						end
 					end
 					task.synchronize()

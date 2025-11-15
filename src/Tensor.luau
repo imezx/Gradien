@@ -188,12 +188,12 @@ function Tensor.reshape(self: Types.Tensor, newShape: { number }): Types.Tensor
 	end)
 end
 
--- @param self Tensor
--- @param dim number -- dimension to slice (1-based)
--- @param startIdx number -- inclusive start index
--- @param endIdx number? -- inclusive end index (default: full dimension)
--- @param step number? -- step > 0 (default: 1)
--- @return Tensor
+--@param self Tensor
+--@param dim number -- dimension to slice (1-based)
+--@param startIdx number -- inclusive start index
+--@param endIdx number? -- inclusive end index (default: full dimension)
+--@param step number? -- step > 0 (default: 1)
+--@return Tensor
 function Tensor.slice(self: Types.Tensor, dim: number, startIdx: number, endIdx: number?, step: number?): Types.Tensor
 	local shape = self._shape
 	local rank = #shape
@@ -302,10 +302,10 @@ function Tensor.slice(self: Types.Tensor, dim: number, startIdx: number, endIdx:
 	end)
 end
 
--- @param self Tensor
--- @param dim1 number? -- first dimension (1-based)
--- @param dim2 number? -- second dimension (1-based)
--- @return Tensor
+--@param self Tensor
+--@param dim1 number? -- first dimension (1-based)
+--@param dim2 number? -- second dimension (1-based)
+--@return Tensor
 function Tensor.transpose(self: Types.Tensor, dim1: number?, dim2: number?): Types.Tensor
 	local shape = self._shape
 	local rank = #shape
@@ -418,11 +418,11 @@ function Tensor.transpose(self: Types.Tensor, dim1: number?, dim2: number?): Typ
 	end)
 end
 
--- @param self Tensor
--- @param dim number -- dimension to narrow (1-based)
--- @param startIdx number -- inclusive start index
--- @param length number -- number of elements to keep along that dim
--- @return Tensor
+--@param self Tensor
+--@param dim number -- dimension to narrow (1-based)
+--@param startIdx number -- inclusive start index
+--@param length number -- number of elements to keep along that dim
+--@return Tensor
 function Tensor.narrow(self: Types.Tensor, dim: number, startIdx: number, length: number): Types.Tensor
 	assert(length >= 1, "narrow: length must be >= 1")
 	local endIdx = startIdx + length - 1
@@ -440,6 +440,12 @@ function Tensor.detach(self: Types.Tensor): Types.Tensor
 		_grad = nil,
 	}, Tensor)
 	return out
+end
+
+--@param self Tensor
+function Tensor.noGrad(self: Types.Tensor): ()
+	self._requiresGrad = false
+	self._grad = nil
 end
 
 return Tensor
