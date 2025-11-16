@@ -92,6 +92,7 @@ Gradien.Classic = {
 	Ridge = require("@self/classic/Ridge"),
 	LogisticRegression = require("@self/classic/LogisticRegression"),
 	KMeans = require("@self/classic/KMeans"),
+	KNN = require("@self/classic/KNN"),
 	GaussianNB = require("@self/classic/GaussianNB"),
 	MultinomialNB = require("@self/classic/MultinomialNB"),
 }
