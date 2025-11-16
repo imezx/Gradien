@@ -8,6 +8,8 @@ export type Tensor = {
 	_shape: Shape,
 	_dtype: DType,
 	_requiresGrad: boolean,
+	_size: number,
+	_strides: { number }?,
 	_parents: { Tensor }?,
 	_backprop: ((grad: Tensor) -> ())?,
 	_grad: Tensor?,
