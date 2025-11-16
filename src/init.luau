@@ -1,5 +1,5 @@
 --[[
-Gradien (ML Library) Version 1.4.0
+Gradien (ML Library) Version 1.4.0-rc0
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
 written by @Eternity_Devs
 ]]
