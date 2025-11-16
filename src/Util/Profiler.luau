@@ -31,8 +31,32 @@ local function clamp(value: number): number
 	return value
 end
 
+local function formatTime(value: number, precision: number): string
+	local absValue, unit, scaled = math.abs(value)
+	if absValue >= 1 then
+		unit = "s"
+		scaled = value
+	elseif absValue >= 1e-3 then
+		unit = "ms"
+		scaled = value * 1e3
+	elseif absValue >= 1e-6 then
+		unit = "us"
+		scaled = value * 1e6
+	else
+		unit = "ns"
+		scaled = value * 1e9
+	end
+	local prec = math.max(0, precision)
+	local spec = "%." .. tostring(prec) .. "f%s"
+	return fmt(spec, scaled, unit)
+end
+
 function Profiler.reset(): ()
 	table.clear(stats)
+	table.clear(stack)
+end
+
+function Profiler.flush(): ()
 	table.clear(stack)
 end
 
@@ -67,7 +91,8 @@ function Profiler.stop(name: string?): number?
 	end
 	local depth = #stack
 	if depth == 0 then
-		error("Profiler.stop called without matching Profiler.start", 2)
+		-- error("Profiler.stop called without matching Profiler.start", 2)
+		return nil
 	end
 	local marker = stack[depth]
 	stack[depth] = nil
@@ -102,8 +127,10 @@ local function callWithProfiling(name: string, fn: Types.Callable, ...: any): (n
 		end
 		return 0, table.unpack(results, 2, results.n)
 	end
-	Profiler.start(name)
-	local packed = table.pack(pcall(fn, ...))
+	local packed = table.pack(pcall(function(...)
+		Profiler.start(name)
+		return fn(...)
+	end, ...))
 	local elapsed = Profiler.stop(name) or 0
 	if not packed[1] then
 		error(packed[2], 0)
@@ -238,19 +265,24 @@ function Profiler.report(opts: ReportOptions?): ({ Types.Sample }, number)
 		end
 	end
 	if options.print ~= false then
-		print(fmt("[Profiler] total %.6fs (%d sections)", total, #entries))
-		print(fmt("%-24s %10s %10s %10s %8s %8s %8s", "section", "total", "self", "avg", "count", "min", "max"))
+		print(fmt("[Profiler] total %s (%d sections)", formatTime(total, precision), #entries))
+		print(fmt("%-24s %12s %12s %12s %8s %12s %12s", "section", "total", "self", "avg", "count", "min", "max"))
 		for _, entry in entries do
+			local totalStr = formatTime(entry.total, precision)
+			local selfStr = formatTime(entry.self, precision)
+			local avgStr = formatTime(entry.avg, precision)
+			local minStr = formatTime(entry.min, precision)
+			local maxStr = formatTime(entry.max, precision)
 			print(
 				fmt(
-					`%-24s %10.{precision}f %10.{precision}f %10.{precision}f %8d %8.{precision}f %8.{precision}f (%5.1f%%)`,
+					"%-24s %12s %12s %12s %8d %12s %12s (%5.1f%%)",
 					entry.name,
-					entry.total,
-					entry.self,
-					entry.avg,
+					totalStr,
+					selfStr,
+					avgStr,
 					entry.count,
-					entry.min,
-					entry.max,
+					minStr,
+					maxStr,
 					entry.percent
 				)
 			)
