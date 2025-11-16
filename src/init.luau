@@ -24,6 +24,7 @@ Gradien.Models = {
 	TransformerEncoder = require("@self/models/TransformerEncoder"),
 	SequenceClassifier = require("@self/models/SequenceClassifier"),
 	AutoEncoder = require("@self/models/AutoEncoder"),
+	Utils = require("@self/models/Utils"),
 }
 Gradien.Ops = {
 	Math = require("@self/ops/Math"),
