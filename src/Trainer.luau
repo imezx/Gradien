@@ -81,7 +81,7 @@ local function runSimple(cfg: Types.SimpleConfig): ()
 			end
 			if bestMetric == nil or m > bestMetric then
 				bestMetric = m
-				if next(callbacks) then
+				if #callbacks > 0 then
 					fireCallbacks(callbacks, "best", {
 						epoch = 1,
 						step = step,
@@ -94,7 +94,7 @@ local function runSimple(cfg: Types.SimpleConfig): ()
 			end
 		end
 
-		if next(callbacks) then
+		if #callbacks > 0 then
 			fireCallbacks(callbacks, "step_end", {
 				epoch = 1,
 				step = step,

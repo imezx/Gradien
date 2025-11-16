@@ -172,7 +172,7 @@ return function(cfg)
 				local B = cfg.replay:sample(batchSize)
 				return tdUpdate(B.S, B.A, B.R, B.NS, B.D)
 			end
-			if not next(onlineBuf) then
+			if #onlineBuf == 0 then
 				return nil
 			end
 			task.desynchronize()

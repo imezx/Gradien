@@ -145,7 +145,7 @@ local function softmaxRows(x: TensorT): TensorT
 end
 
 local function concatHeads(heads: { TensorT }, headDim: number, tokens: number): TensorT
-	assert(next(heads), "concatHeads: expected at least one head")
+	assert(#heads > 0, "concatHeads: expected at least one head")
 	local embedDim = headDim * #heads
 	local requiresGrad = false
 	for _, h in heads do

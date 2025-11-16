@@ -109,7 +109,7 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 	local pending: { [Types.Tensor]: number } = {}
 	local visitStack = { y }
 	local seen = {}
-	while next(visitStack) do
+	while #visitStack > 0 do
 		local node = table.remove(visitStack)
 		if not seen[node] then
 			seen[node] = true
@@ -125,7 +125,7 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 	end
 	y._grad = grad
 	local ready = { y }
-	while next(ready) do
+	while #ready > 0 do
 		local node = table.remove(ready)
 		if node._requiresGrad then
 			local g = node._grad
