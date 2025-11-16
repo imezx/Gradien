@@ -11,7 +11,7 @@ local function asArrayCallbacks(raw: Types.Callbacks?, default: { Types.Callback
 	if type(raw) ~= "table" then
 		return default or {}
 	end
-	if next(raw) then
+	if not next(raw) then
 		return raw :: { Types.CallbackFn }
 	end
 

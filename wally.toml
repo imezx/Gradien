@@ -1,6 +1,6 @@
 [package]
 name = "imezx/gradien"
-version = "1.4.0"
+version = "1.4.0-rc-0"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 license = "LGPL-3.0"
