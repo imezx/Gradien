@@ -174,13 +174,14 @@ return function(cfg)
 				local B = cfg.replay:sample(batchSize)
 				return tdUpdate(B.S, B.A, B.R, B.NS, B.D)
 			end
-			if #onlineBuf == 0 then
+			local lenBuf = #onlineBuf
+			if lenBuf == 0 then
 				return nil
 			end
 			task.desynchronize()
-			local n = math.min(batchSize, #onlineBuf)
+			local n = math.min(batchSize, lenBuf)
 			local tmp = table.create(n)
-			for i = #onlineBuf - n + 1, #onlineBuf do
+			for i = lenBuf - n + 1, lenBuf do
 				table.insert(tmp, onlineBuf[i])
 			end
 			local S, A, R, NS, D = packBatch(tmp)

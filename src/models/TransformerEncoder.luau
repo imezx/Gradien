@@ -82,7 +82,7 @@ local function buildBlock(embedDim: number, cfg: TransformerEncoderConfig): Bloc
 	}
 end
 
-local function buildEncoder(cfg: TransformerEncoderConfig)
+local function buildEncoder(cfg: TransformerEncoderConfig): Types.Module<Types.Tensor, Types.Tensor>
 	assert(cfg.embedDim and cfg.numHeads, "TransformerEncoder: embedDim/numHeads required")
 	local numLayers = math.max(1, cfg.numLayers or 4)
 	local blocks = table.create(numLayers)
@@ -150,21 +150,13 @@ local function buildEncoder(cfg: TransformerEncoderConfig)
 		Utils.trainAll(trainables, mode)
 	end
 
-	local module = {
+	return {
 		forward = forward,
 		parameters = parameters,
 		train = train,
 	}
-	return module
 end
 
-local API = {}
-function API.new(cfg: TransformerEncoderConfig)
-	return buildEncoder(cfg)
-end
-
-return setmetatable(API, {
-	__call = function(_, cfg: TransformerEncoderConfig)
-		return buildEncoder(cfg)
-	end,
-})
+return {
+	new = buildEncoder,
+}

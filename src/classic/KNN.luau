@@ -7,23 +7,8 @@ local assert = Util.Assert
 --@field X any
 --@field y {number}
 --@field k integer
-local KNN = {}
-KNN.__index = KNN
 
---@param X Tensor -- {D,N} training
---@param y {number} -- length N, class indices (1..C)
---@param k integer? -- neighbors (default 5)
---@return KNN
-function KNN.new(X: Types.Tensor, y: { number }, k: number?)
-	assert(#y == X._shape[2], "KNN: y length must equal N")
-	local self = setmetatable({}, KNN)
-	self.X, self.y, self.k = X, y, k or 5
-	return self
-end
-
---@param Q Tensor -- {D,B}
---@return {number} -- {B} predicted classes
-function KNN:predict(Q: Types.Tensor): { number }
+local function predict(self, Q: Types.Tensor): { number }
 	task.desynchronize()
 	local D, N = self.X._shape[1], self.X._shape[2]
 	local B = Q._shape[2]
@@ -61,4 +46,14 @@ function KNN:predict(Q: Types.Tensor): { number }
 	return out
 end
 
-return KNN.new
+local function new(X: Types.Tensor, y: { number }, k: number?)
+	assert(#y == X._shape[2], "KNN: y length must equal N")
+	return {
+		X = X,
+		y = y,
+		k = k or 5,
+		predict = predict,
+	}
+end
+
+return new

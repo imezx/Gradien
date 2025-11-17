@@ -21,14 +21,7 @@ export type SequenceClassifierConfig = {
 }
 
 type CellType = "gru" | "lstm" | "rnn"
-
-type LSTMState = {
-	h: Types.Tensor,
-	c: Types.Tensor,
-}
-
-local SequenceClassifier = {}
-SequenceClassifier.__index = SequenceClassifier
+type LSTMState = { h: Types.Tensor, c: Types.Tensor }
 
 local function makeCell(cellType: CellType, inputDim: number, hiddenDim: number)
 	if cellType == "lstm" then
@@ -44,7 +37,81 @@ local function sliceTimeStep(x: Types.Tensor, t: number, inputDim: number, batch
 	return Tensor.reshape(step, { inputDim, batch })
 end
 
-function SequenceClassifier.new(cfg: SequenceClassifierConfig): Types.Module<Types.Tensor, Types.Tensor>
+local function initStates(self, batch: number, dtype: Types.DType, requiresGrad: boolean)
+	local states = table.create(#self._cells)
+	for i = 1, #self._cells do
+		if self._cellType == "lstm" then
+			states[i] = {
+				h = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad),
+				c = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad),
+			}
+		else
+			states[i] = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad)
+		end
+	end
+	return states
+end
+
+local function forward(self, x: Types.Tensor): Types.Tensor
+	assert(#x._shape == 3, "SequenceClassifier: expected input shape {features, time, batch}")
+	local inputDim, timeSteps, batch = x._shape[1], x._shape[2], x._shape[3]
+	assert(inputDim == self._inputDim, "SequenceClassifier: inputDim mismatch")
+	local states = initStates(self, batch, x._dtype, x._requiresGrad)
+	local last
+	for t = 1, timeSteps do
+		local step = sliceTimeStep(x, t, inputDim, batch)
+		local layerInput: Types.Tensor = step
+		for layerIdx, cell in ipairs(self._cells) do
+			if self._cellType == "lstm" then
+				local state = states[layerIdx] :: LSTMState
+				local nextH, nextC = cell:forward(layerInput, state.h, state.c)
+				states[layerIdx] = { h = nextH, c = nextC }
+				layerInput = nextH
+			else
+				local prev = states[layerIdx] :: Types.Tensor
+				local nextH = cell:forward(layerInput, prev)
+				states[layerIdx] = nextH
+				layerInput = nextH
+			end
+			local drop = self._dropoutBetween[layerIdx]
+			if drop and layerIdx < #self._cells then
+				layerInput = drop:forward(layerInput)
+			end
+		end
+		last = layerInput
+	end
+	assert(last, "SequenceClassifier: sequence length must be >= 1")
+	local out = last
+	if self._norm then
+		out = self._norm:forward(out)
+	end
+	if self._finalDropout then
+		out = self._finalDropout:forward(out)
+	end
+	out = self._head:forward(out)
+	if self._finalAct then
+		out = self._finalAct:forward(out)
+	end
+	return out
+end
+
+local function parameters(self): { Types.Tensor }
+	local params = {}
+	for _, cell in ipairs(self._cells) do
+		Utils.collectParams(params, cell)
+	end
+	if self._norm then
+		Utils.collectParams(params, self._norm)
+	end
+	Utils.collectParams(params, self._head)
+	return params
+end
+
+local function train(self, mode: boolean?)
+	Utils.trainAll(self._trainables, mode)
+end
+
+local function SequenceClassifier(cfg: SequenceClassifierConfig): Types.Module<Types.Tensor, Types.Tensor>
 	assert(cfg.inputDim and cfg.hiddenDim and cfg.numClasses, "SequenceClassifier: missing config fields")
 	local numLayers = math.max(1, cfg.numLayers or 1)
 	local cellType = (cfg.cell or "gru") :: CellType
@@ -86,7 +153,7 @@ function SequenceClassifier.new(cfg: SequenceClassifierConfig): Types.Module<Typ
 		table.insert(trainables, finalAct)
 	end
 
-	local self = setmetatable({
+	return {
 		_inputDim = cfg.inputDim,
 		_hiddenDim = cfg.hiddenDim,
 		_cells = layers,
@@ -97,95 +164,12 @@ function SequenceClassifier.new(cfg: SequenceClassifierConfig): Types.Module<Typ
 		_head = head,
 		_finalAct = finalAct,
 		_trainables = trainables,
-	}, SequenceClassifier)
-
-	return self
+		forward = forward,
+		parameters = parameters,
+		train = train,
+	}
 end
 
-function SequenceClassifier:_initStates(
-	batch: number,
-	dtype: Types.DType,
-	requiresGrad: boolean
-): { LSTMState | Types.Tensor }
-	local states = table.create(#self._cells)
-	for i = 1, #self._cells do
-		if self._cellType == "lstm" then
-			states[i] = {
-				h = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad),
-				c = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad),
-			}
-		else
-			states[i] = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad)
-		end
-	end
-	return states
-end
-
-function SequenceClassifier:forward(x: Types.Tensor): Types.Tensor
-	assert(#x._shape == 3, "SequenceClassifier: expected input shape {features, time, batch}")
-	local inputDim, timeSteps, batch = x._shape[1], x._shape[2], x._shape[3]
-	assert(inputDim == self._inputDim, "SequenceClassifier: inputDim mismatch")
-	local states = self:_initStates(batch, x._dtype, x._requiresGrad)
-	local last
-	for t = 1, timeSteps do
-		local step = sliceTimeStep(x, t, inputDim, batch)
-		local layerInput: Types.Tensor = step
-		for layerIdx, cell in ipairs(self._cells) do
-			if self._cellType == "lstm" then
-				local state = states[layerIdx] :: LSTMState
-				local nextH, nextC = cell:forward(layerInput, state.h, state.c)
-				states[layerIdx] = { h = nextH, c = nextC }
-				layerInput = nextH
-			else
-				local prev = states[layerIdx] :: Types.Tensor
-				local nextH = cell:forward(layerInput, prev)
-				states[layerIdx] = nextH
-				layerInput = nextH
-			end
-			local drop = self._dropoutBetween[layerIdx]
-			if drop and layerIdx < #self._cells then
-				layerInput = drop:forward(layerInput)
-			end
-		end
-		last = layerInput
-	end
-	assert(last, "SequenceClassifier: sequence length must be >= 1")
-	local out = last
-	if self._norm then
-		out = self._norm:forward(out)
-	end
-	if self._finalDropout then
-		out = self._finalDropout:forward(out)
-	end
-	out = self._head:forward(out)
-	if self._finalAct then
-		out = self._finalAct:forward(out)
-	end
-	return out
-end
-
-function SequenceClassifier:parameters(): { Types.Tensor }
-	local params = {}
-	for _, cell in ipairs(self._cells) do
-		Utils.collectParams(params, cell)
-	end
-	if self._norm then
-		Utils.collectParams(params, self._norm)
-	end
-	Utils.collectParams(params, self._head)
-	return params
-end
-
-function SequenceClassifier:train(mode: boolean?)
-	Utils.trainAll(self._trainables, mode)
-end
-
-return setmetatable({
-	new = function(cfg: SequenceClassifierConfig): Types.Module<Types.Tensor, Types.Tensor>
-		return SequenceClassifier.new(cfg)
-	end,
-}, {
-	__call = function(_, cfg: SequenceClassifierConfig): Types.Module<Types.Tensor, Types.Tensor>
-		return SequenceClassifier.new(cfg)
-	end,
-})
+return {
+	new = SequenceClassifier,
+}

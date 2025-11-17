@@ -3,33 +3,7 @@ local Tape = require("../autograd/Tape")
 local Tensor = require("../Tensor")
 local Types = require("../Types")
 
-local RND = {}
-RND.__index = RND
-
---@param target any   -- module with :forward({D,B})->{E,B}; randomly init, never trained
---@param predictor any -- trainable module with same input/output dims as target
---@param optimizer any -- optimizer over predictor:parameters()
---@param norm? table  -- optional running norm with :update(x) and :normalize(x)
-function RND.new(
-	target: Types.Module<Types.Tensor, Types.Tensor>,
-	predictor: Types.Module<Types.Tensor, Types.Tensor>,
-	optimizer: Types.Optimizer,
-	norm: {
-		update: (self: { update: (x: number) -> (), normalize: (x: number) -> number }, x: number) -> number,
-		normalize: (self: { update: (x: number) -> number, normalize: (x: number) -> number }, x: number) -> number,
-	}?
-)
-	local self = setmetatable({}, RND)
-	self.target = target
-	self.predictor = predictor
-	self.opt = optimizer
-	self.norm = norm
-	return self
-end
-
---@param s Tensor
---@return number -- intrinsic reward (normalized if norm given)
-function RND:step(s: Types.Tensor): number
+local function step(self, s: Types.Tensor): number
 	self.opt:zeroGrad()
 	local g = self.target:forward(s) :: Types.Tensor -- {E,1}
 	local f = self.predictor:forward(s) :: Types.Tensor -- {E,1}
@@ -52,4 +26,22 @@ function RND:step(s: Types.Tensor): number
 	return r
 end
 
-return RND
+local function new(
+	target: Types.Module<Types.Tensor, Types.Tensor>,
+	predictor: Types.Module<Types.Tensor, Types.Tensor>,
+	optimizer: Types.Optimizer,
+	norm: {
+		update: (self: { update: (x: number) -> (), normalize: (x: number) -> number }, x: number) -> number,
+		normalize: (self: { update: (x: number) -> number, normalize: (x: number) -> number }, x: number) -> number,
+	}?
+)
+	return {
+		target = target,
+		predictor = predictor,
+		opt = optimizer,
+		norm = norm,
+		step = step,
+	}
+end
+
+return { new = new }

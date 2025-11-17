@@ -7,14 +7,16 @@ local assert = Util.Assert
 
 local function maxPerColumn(Q)
 	local A, B = Q._shape[1], Q._shape[2]
-	local maxv = table.create(B, -1/0)
+	local maxv = table.create(B, -1 / 0)
 	local arg = table.create(B, 1)
 	task.desynchronize()
 	for j = 1, B do
-		local best, ai = -1/0, 1
+		local best, ai = -1 / 0, 1
 		for i = 1, A do
 			local v = Q._storage[(i - 1) * B + j]
-			if v > best then best, ai = v, i end
+			if v > best then
+				best, ai = v, i
+			end
 		end
 		maxv[j], arg[j] = best, ai
 	end
@@ -45,8 +47,12 @@ end
 
 local function asArray(entry)
 	if type(entry) == "table" then
-		if entry.data then return entry.data end
-		if entry[1] ~= nil then return entry end
+		if entry.data then
+			return entry.data
+		end
+		if entry[1] ~= nil then
+			return entry
+		end
 	end
 	error("Bad snapshot entry; expected {data=...} or numeric array")
 end
@@ -78,9 +84,11 @@ return function(cfg)
 		task.synchronize()
 	end
 	copyParams()
-	
+
 	local function softUpdateParams(alpha: number)
-		if not alpha or alpha <= 0 then return end
+		if not alpha or alpha <= 0 then
+			return
+		end
 		local fp, tp = policy:parameters(), target:parameters()
 		task.desynchronize()
 		for i = 1, #fp do
@@ -176,16 +184,19 @@ return function(cfg)
 				local B = cfg.replay:sample(batchSize)
 				return tdUpdate(B.S, B.A, B.R, B.NS, B.D)
 			end
-			if #onlineBuf == 0 then
+			local lenBuf = #onlineBuf
+			if lenBuf == 0 then
 				return nil
 			end
-			local n = math.min(batchSize, #onlineBuf)
+			local n = math.min(batchSize, lenBuf)
 			local tmp = table.create(n)
-			for i = #onlineBuf - n + 1, #onlineBuf do
+			for i = lenBuf - n + 1, lenBuf do
 				table.insert(tmp, onlineBuf[i])
 			end
 			local S, A, R, NS, D = packBatch(tmp)
-			if not cfg.onlineKeep then table.clear(onlineBuf) end
+			if not cfg.onlineKeep then
+				table.clear(onlineBuf)
+			end
 			return tdUpdate(S, A, R, NS, D)
 		end,
 
@@ -195,23 +206,33 @@ return function(cfg)
 			assert(n > 0, "No parameters in policy")
 
 			local arr = table.create(n)
-			for i = 1, n do if not strict and not snapshot[i] then continue end arr[i] = asArray(snapshot[i]) end
+			for i = 1, n do
+				if not strict and not snapshot[i] then
+					continue
+				end
+				arr[i] = asArray(snapshot[i])
+			end
 
 			if strict ~= false then
 				assert(#arr == n, "snapshot size mismatch")
 				for i = 1, n do
-					assert(#fp[i]._storage == #arr[i],
-						("tensor size mismatch at %d, got %d:%d")
-							:format(i, #fp[i]._storage, #arr[i]))
+					assert(
+						#fp[i]._storage == #arr[i],
+						("tensor size mismatch at %d, got %d:%d"):format(i, #fp[i]._storage, #arr[i])
+					)
 				end
 			end
 
 			task.desynchronize()
 			for i = 1, n do
 				local p, s = fp[i], arr[i]
-				if not s then continue end
+				if not s then
+					continue
+				end
 				local m = math.min(#p._storage, #s)
-				for k = 1, m do p._storage[k] = s[k] end
+				for k = 1, m do
+					p._storage[k] = s[k]
+				end
 			end
 			task.synchronize()
 
@@ -220,7 +241,9 @@ return function(cfg)
 			task.desynchronize()
 			for i = 1, n do
 				local ps, ts = fp[i]._storage, tp[i]._storage
-				for k = 1, #ps do ts[k] = ps[k] end
+				for k = 1, #ps do
+					ts[k] = ps[k]
+				end
 			end
 			task.synchronize()
 		end,

@@ -3,17 +3,20 @@ local Linear = require("../nn/Linear")
 local Losses = require("../nn/Losses")
 local Tape = require("../autograd/Tape")
 local Tensor = require("../Tensor")
+local Types = require("../Types")
 local Adam = require("../optim/Adam")
 local Util = require("../Util")
 
 local assert = Util.Assert
 
---@class SoftmaxRegression
---@field fc any
-local SoftmaxRegression = {}
-SoftmaxRegression.__index = SoftmaxRegression
-
-local function slice(N, X, D, y, startIdx: number, size: number)
+local function slice(
+	N: number,
+	X: Types.Tensor,
+	D: number,
+	y: { number },
+	startIdx: number,
+	size: number
+): (Types.Tensor, { number })
 	local B = math.min(size, N - startIdx + 1)
 	local XB = Tensor.zeros({ D, B }, X._dtype, X._requiresGrad)
 	local yB = table.create(B, 1)
@@ -29,44 +32,27 @@ local function slice(N, X, D, y, startIdx: number, size: number)
 	return XB, yB
 end
 
---@param inDim number -- D
---@param classes number -- C
---@return SoftmaxRegression
-function SoftmaxRegression.new(inDim: number, classes: number)
-	local self = setmetatable({}, SoftmaxRegression)
-	self.fc = Linear(inDim, classes)
-	return self
-end
-
---@param X Tensor {D,B}
---@return logits {C,B}
-function SoftmaxRegression:forward(X)
+local function forward(self, X: Types.Tensor): Types.Tensor
 	return self.fc:forward(X)
 end
 
-function SoftmaxRegression:parameters()
+local function parameters(self): { Types.Tensor }
 	return self.fc:parameters()
 end
 
---@param X Tensor -- {D,N}
---@param y {number} -- indices 1..C, length N
---@param lr number? -- default 1e-2
---@param epochs integer? -- default 5
---@param batch integer? -- default 64
---@param smoothing number? -- default 0
-function SoftmaxRegression:fit(X, y, lr, epochs, batch, smoothing)
+local function fit(self, X: Types.Tensor, y: { number }, lr: number, epochs: number, batch: number, smoothing: number)
 	lr, epochs, batch = lr or 1e-2, epochs or 5, batch or 64
 	smoothing = smoothing or 0
 	local D, N = X._shape[1], X._shape[2]
 	assert(#y == N, "y length must equal N")
-	
+
 	task.desynchronize()
-	local opt = Adam(self:parameters(), lr)
-	for e = 1, epochs do
+	local opt = Adam(parameters(self), lr)
+	for _ = 1, epochs do
 		for s = 1, N, batch do
 			local XB, yB = slice(N, X, D, y, s, batch)
 			opt:zeroGrad()
-			local logits = self:forward(XB)
+			local logits = forward(self, XB)
 			local _, dlogits = Losses.cross_entropy_backward(logits, yB, smoothing)
 			Tape.backwardFrom(logits, dlogits)
 			opt:step()
@@ -75,4 +61,13 @@ function SoftmaxRegression:fit(X, y, lr, epochs, batch, smoothing)
 	task.synchronize()
 end
 
-return SoftmaxRegression.new
+local function new(inDim: number, classes: number): Types.Module<Types.Tensor, Types.Tensor>
+	return {
+		fc = Linear(inDim, classes),
+		forward = forward,
+		parameters = parameters,
+		fit = fit,
+	}
+end
+
+return new

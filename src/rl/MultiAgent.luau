@@ -3,24 +3,20 @@ local Types = require("../Types")
 local Util = require("../Util")
 local assert = Util.Assert
 
-local MultiAgent = {}
-MultiAgent.__index = MultiAgent
-
-function MultiAgent:getAgent(i: number): Types.Module
+local function getAgent(self, i: number): Types.Module
 	assert(i >= 1 and i <= self._numAgents, ("MultiAgent: index %d out of range [1,%d]"):format(i, self._numAgents))
 	return self._agents[i]
 end
 
-function MultiAgent:size(): number
+local function size(self): number
 	return self._numAgents
 end
 
-function MultiAgent:act(i: number, state: Types.Tensor, step: number): Types.Tensor
-	local agent = self:getAgent(i)
-	return agent:act(state, step)
+local function act(self, i: number, state: Types.Tensor, step: number): Types.Tensor
+	return (getAgent(self, i) :: any):act(state, step)
 end
 
-function MultiAgent:actAll(states: { Types.Tensor }, step: number): { Types.Tensor }
+local function actAll(self, states: { Types.Tensor }, step: number): { Types.Tensor }
 	assert(#states == self._numAgents, "MultiAgent: actAll() expects one state per agent")
 	local actions = table.create(self._numAgents)
 	for idx = 1, self._numAgents do
@@ -29,14 +25,14 @@ function MultiAgent:actAll(states: { Types.Tensor }, step: number): { Types.Tens
 	return actions
 end
 
-function MultiAgent:observe(i: number, t: Types.Tensor)
-	local agent = self:getAgent(i)
+local function observe(self, i: number, t: Types.Tensor)
+	local agent = getAgent(self, i)
 	if agent.observe then
 		agent:observe(t)
 	end
 end
 
-function MultiAgent:observeAll(ts: { Types.Tensor })
+local function observeAll(self, ts: { Types.Tensor })
 	for idx = 1, self._numAgents do
 		local t = ts[idx]
 		if t then
@@ -48,19 +44,7 @@ function MultiAgent:observeAll(ts: { Types.Tensor })
 	end
 end
 
-function MultiAgent:trainStep(i: number): Types.Tensor?
-	if i ~= nil then
-		local agent = self:getAgent(i)
-		if agent.trainStep then
-			return agent:trainStep()
-		else
-			return nil
-		end
-	end
-	return self:trainStepAll()
-end
-
-function MultiAgent:trainStepAll(): { Types.Tensor? }
+local function trainStepAll(self): { Types.Tensor? }
 	local out = table.create(self._numAgents)
 	for idx = 1, self._numAgents do
 		local agent = self._agents[idx]
@@ -73,7 +57,18 @@ function MultiAgent:trainStepAll(): { Types.Tensor? }
 	return out
 end
 
-function MultiAgent:parameters(): { Types.Tensor }
+local function trainStep(self, i: number?): Types.Tensor?
+	if i ~= nil then
+		local agent = getAgent(self, i)
+		if agent.trainStep then
+			return agent:trainStep()
+		end
+		return nil
+	end
+	return trainStepAll(self)
+end
+
+local function parameters(self): { Types.Tensor }
 	local params = {}
 	for idx = 1, self._numAgents do
 		local agent = self._agents[idx]
@@ -81,7 +76,7 @@ function MultiAgent:parameters(): { Types.Tensor }
 			local ps = agent:parameters()
 			if ps then
 				for j = 1, #ps do
-					table.insert(params, ps[j])
+					params[#params + 1] = ps[j]
 				end
 			end
 		end
@@ -89,13 +84,13 @@ function MultiAgent:parameters(): { Types.Tensor }
 	return params
 end
 
-function MultiAgent:map(fn: (Types.Module, number) -> ())
+local function map(self, fn: (Types.Module, number) -> ())
 	for idx = 1, self._numAgents do
 		fn(self._agents[idx], idx)
 	end
 end
 
-return function(cfg: { numAgents: number, makeAgent: (number) -> Types.Module }): typeof(setmetatable({}, MultiAgent))
+return function(cfg: { numAgents: number, makeAgent: (number) -> Types.Module })
 	local n = assert(cfg.numAgents, "MultiAgent: cfg.numAgents required")
 	assert(n >= 1, "MultiAgent: numAgents must be >= 1")
 	local makeAgent = cfg.makeAgent
@@ -106,8 +101,18 @@ return function(cfg: { numAgents: number, makeAgent: (number) -> Types.Module })
 		assert(agent ~= nil, `MultiAgent: makeAgent({i}) returned nil`)
 		agents[i] = agent
 	end
-	return setmetatable({
+	return {
 		_agents = agents,
 		_numAgents = n,
-	}, MultiAgent)
+		getAgent = getAgent,
+		size = size,
+		act = act,
+		actAll = actAll,
+		observe = observe,
+		observeAll = observeAll,
+		trainStep = trainStep,
+		trainStepAll = trainStepAll,
+		parameters = parameters,
+		map = map,
+	}
 end

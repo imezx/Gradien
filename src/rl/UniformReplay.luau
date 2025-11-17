@@ -4,36 +4,37 @@ local Buffer = require("../Util/Buffer")
 local Util = require("../Util")
 local assert = Util.Assert
 
----@class UniformReplay
----@field capacity integer
----@field size_ integer
----@field head integer
----@field S {any}
----@field A {number}
----@field R {number}
----@field NS {any}
----@field D {boolean}
----@field stateDim number?
----@field stateDType string?
-local UR = {}
-UR.__index = UR
+local function packBatch(self, idxs: { number })
+	local B = #idxs
+	assert(B > 0, "UniformReplay: empty index list")
+	assert(self.stateDim, "UniformReplay: buffer is empty")
+	local sd = self.stateDim
+	local dtype = self.stateDType
 
----@param capacity integer
----@return UniformReplay
-function UR.new(capacity: number)
-	assert(capacity >= 1, "UniformReplay: capacity must be >= 1")
-	local self = setmetatable({}, UR)
-	self.capacity = capacity
-	self.size_ = 0
-	self.head = 1
-	self.S, self.A, self.R, self.NS, self.D = {}, {}, {}, {}, {}
-	self.stateDim = nil
-	self.stateDType = nil
-	return self
+	local S = Tensor.zeros({ sd, B }, dtype, false)
+	local NS = Tensor.zeros({ sd, B }, dtype, false)
+	local A = table.create(B, 1)
+	local R = table.create(B, 0.0)
+	local D = table.create(B, false)
+
+	task.desynchronize()
+	for j = 1, B do
+		local k = idxs[j]
+		A[j], R[j], D[j] = self.A[k], self.R[k], self.D[k]
+		Buffer.copyDenseToColumn(self.S[k], dtype, S._storage, j, B, sd)
+		Buffer.copyDenseToColumn(self.NS[k], dtype, NS._storage, j, B, sd)
+	end
+	task.synchronize()
+
+	local w = table.create(B, 1.0)
+	for j = 1, B do
+		w[j] = 1.0
+	end
+
+	return { S = S, A = A, R = R, NS = NS, D = D, indices = idxs, weights = w }
 end
 
----@param t {state:any, action:number, reward:number, nextState:any, done:boolean?}
-function UR:push(t)
+local function push(self, t)
 	assert(t.state and t.nextState, "UniformReplay: state and nextState required")
 	local stateTensor = t.state
 	local nextStateTensor = t.nextState
@@ -58,11 +59,11 @@ function UR:push(t)
 	end
 end
 
-function UR:size(): number
+local function size(self): number
 	return self.size_
 end
 
-function UR:clear()
+local function clear(self)
 	self.size_, self.head = 0, 1
 	self.stateDim, self.stateDType = nil, nil
 	table.clear(self.S)
@@ -72,48 +73,14 @@ function UR:clear()
 	table.clear(self.D)
 end
 
-function UR:canSample(B: number): boolean
+local function canSample(self, B: number): boolean
 	return self.size_ >= B
 end
 
-local function packBatch(self, idxs: { number })
-	local B = #idxs
-	assert(B > 0, "UniformReplay: empty index list")
-	assert(self.stateDim, "UniformReplay: buffer is empty")
-	local sd = self.stateDim
-	local dtype = self.stateDType
-
-	local S = Tensor.zeros({ sd, B }, dtype, false)
-	local NS = Tensor.zeros({ sd, B }, dtype, false)
-	local A = table.create(B, 1)
-	local R = table.create(B, 0.0)
-	local D = table.create(B, false)
-
-	task.desynchronize()
-	for j = 1, B do
-		local k = idxs[j]
-		A[j], R[j], D[j] = self.A[k], self.R[k], self.D[k]
-		Buffer.copyDenseToColumn(self.S[k], dtype, S._storage, j, B, sd)
-		Buffer.copyDenseToColumn(self.NS[k], dtype, NS._storage, j, B, sd)
-	end
-	task.synchronize()
-
-	-- weights = 1 (no importance correction needed for uniform)
-	local w = table.create(B, 1.0)
-	for j = 1, B do
-		w[j] = 1.0
-	end
-
-	return { S = S, A = A, R = R, NS = NS, D = D, indices = idxs, weights = w }
-end
-
----@param B integer
----@return {S:any,A:{number},R:{number},NS:any,D:{boolean},indices:{number},weights:{number}}
-function UR:sample(B: number)
+local function sample(self, B: number)
 	assert(self.size_ >= B, "UniformReplay: not enough samples")
 	assert(self.stateDim, "UniformReplay: buffer is empty")
 	local idxs = table.create(B, 0)
-	-- uniform with replacement (fast, low alloc)
 	task.desynchronize()
 	for j = 1, B do
 		idxs[j] = math.random(1, self.size_)
@@ -122,6 +89,38 @@ function UR:sample(B: number)
 	return packBatch(self, idxs)
 end
 
+---@class UniformReplay
+---@field capacity integer
+---@field size_ integer
+---@field head integer
+---@field S {any}
+---@field A {number}
+---@field R {number}
+---@field NS {any}
+---@field D {boolean}
+---@field stateDim number?
+---@field stateDType string?
+local function new(capacity: number)
+	assert(capacity >= 1, "UniformReplay: capacity must be >= 1")
+	return {
+		capacity = capacity,
+		size_ = 0,
+		head = 1,
+		S = {},
+		A = {},
+		R = {},
+		NS = {},
+		D = {},
+		stateDim = nil,
+		stateDType = nil,
+		push = push,
+		size = size,
+		clear = clear,
+		canSample = canSample,
+		sample = sample,
+	}
+end
+
 return function(capacity: number)
-	return UR.new(capacity)
+	return new(capacity)
 end

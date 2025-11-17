@@ -107,7 +107,7 @@ end
 --@param rng (() -> number)? (optional) → number in [0,1), default math.random
 --@returns { Tensor, Tensor }
 function Fused.linearDropoutReLU(x: Tensor, W: Tensor, b: Tensor, p: number, rng: (() -> number)?): (Tensor, Tensor)
-	rng = rng or math.random
+	local rng = rng or math.random
 
 	local keep = 1.0 - p
 	assert(keep > 0, "Fused.linearDropoutReLU: keep prob must be > 0")
@@ -152,98 +152,95 @@ function Fused.linearDropoutReLU(x: Tensor, W: Tensor, b: Tensor, p: number, rng
 		end
 	end
 	task.synchronize()
-
 	return y, mask
 end
 
-local Modules = {}
-Modules.__index = Modules
-
--- Linear -> ReLU as one block
-
-local LinearReLU = {}
-LinearReLU.__index = LinearReLU
-
 export type LinearReLU = {
 	_linear: Module,
+	parameters: (self: LinearReLU) -> { Types.Tensor },
+	forward: (self: LinearReLU, x: Tensor) -> Tensor,
 }
-
-function LinearReLU.new(inDim: number, outDim: number, init: ((number, number) -> number)?): Module
-	local self = setmetatable({}, LinearReLU)
-	self._linear = Linear(inDim, outDim, init)
-
-	return (self :: any) :: Module
-end
-
-function LinearReLU:parameters()
-	return self._linear:parameters()
-end
-
-function LinearReLU:forward(x: Tensor): Tensor
-	local z = self._linear:forward(x)
-	return Activations.ReLU(z)
-end
-
-Modules.LinearReLU = LinearReLU
-
---Linear -> GELU as one block
-
-local LinearGELU = {}
-LinearGELU.__index = LinearGELU
 
 export type LinearGELU = {
 	_linear: Module,
+	parameters: (self: LinearGELU) -> { Types.Tensor },
+	forward: (self: LinearGELU, x: Tensor) -> Tensor,
 }
-
-function LinearGELU.new(inDim: number, outDim: number, init: ((number, number) -> number)?): Module
-	local self = setmetatable({}, LinearGELU)
-	self._linear = Linear(inDim, outDim, init)
-	return (self :: any) :: Module
-end
-
-function LinearGELU:parameters()
-	return self._linear:parameters()
-end
-
-function LinearGELU:forward(x: Tensor): Tensor
-	local z = self._linear:forward(x)
-	return Activations.GELU(z)
-end
-
-Modules.LinearGELU = LinearGELU
-
-local LinearDropoutReLU = {}
-LinearDropoutReLU.__index = LinearDropoutReLU
 
 export type LinearDropoutReLU = {
 	_linear: Module,
 	_drop: Module,
+	parameters: (self: LinearDropoutReLU) -> { Types.Tensor },
+	forward: (self: LinearDropoutReLU, x: Tensor) -> Tensor,
 }
 
---Linear -> Dropout -> ReLU
---@param outDim number
---@param p number
---@param init ((number, number) -> number)?
---@return Module
-function LinearDropoutReLU.new(inDim: number, outDim: number, p: number, init: ((number, number) -> number)?): Module
-	local self = setmetatable({}, LinearDropoutReLU)
-	self._linear = Linear(inDim, outDim, init)
-	self._drop = Dropout(p)
+local Modules = {}
+
+local function linearReLUParameters(self: LinearReLU)
+	return self._linear:parameters()
+end
+
+local function linearReLUForward(self: LinearReLU, x: Tensor): Tensor
+	local z = self._linear:forward(x)
+	return Activations.ReLU(z)
+end
+
+function Modules.LinearReLU(inDim: number, outDim: number, init: ((number, number) -> number)?): Module
+	local linear = Linear(inDim, outDim, init)
+	local self: LinearReLU = {
+		_linear = linear,
+		parameters = linearReLUParameters,
+		forward = linearReLUForward,
+	}
 	return (self :: any) :: Module
 end
 
-function LinearDropoutReLU:parameters()
-	local params = self._linear:parameters()
-	return params
+local function linearGELUParameters(self: LinearGELU)
+	return self._linear:parameters()
 end
 
-function LinearDropoutReLU:forward(x: Tensor): Tensor
+local function linearGELUForward(self: LinearGELU, x: Tensor): Tensor
+	local z = self._linear:forward(x)
+	return Activations.GELU(z)
+end
+
+function Modules.LinearGELU(inDim: number, outDim: number, init: ((number, number) -> number)?): Module
+	local linear = Linear(inDim, outDim, init)
+	local self: LinearGELU = {
+		_linear = linear,
+		parameters = linearGELUParameters,
+		forward = linearGELUForward,
+	}
+	return (self :: any) :: Module
+end
+
+local function linearDropoutReLUParameters(self: LinearDropoutReLU)
+	return self._linear:parameters()
+end
+
+local function linearDropoutReLUForward(self: LinearDropoutReLU, x: Tensor): Tensor
 	local z = self._linear:forward(x)
 	local d = self._drop:forward(z)
 	return Activations.ReLU(d)
 end
 
-Modules.LinearDropoutReLU = LinearDropoutReLU
+function Modules.LinearDropoutReLU(
+	inDim: number,
+	outDim: number,
+	p: number,
+	init: ((number, number) -> number)?
+): Module
+	local linear = Linear(inDim, outDim, init)
+	local drop = Dropout(p)
+	local self: LinearDropoutReLU = {
+		_linear = linear,
+		_drop = drop,
+		parameters = linearDropoutReLUParameters,
+		forward = linearDropoutReLUForward,
+	}
+	return (self :: any) :: Module
+end
+
 Fused.Modules = Modules
 
 return Fused
