@@ -12,3 +12,4 @@ sourcemap.json
 Packages
 dev
 test.project.json
+rewrite

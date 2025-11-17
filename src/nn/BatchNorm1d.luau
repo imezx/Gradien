@@ -122,13 +122,35 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 						x._grad = Tensor.zeros(x._shape)
 					end
 					local xGrad = x._grad :: Types.Tensor
+					local sumGy = table.create(D, 0)
+					local sumGyXhat = table.create(D, 0)
+					for i = 1, D do
+						local base = (i - 1) * B
+						local invI = inv._storage[i]
+						local accGy = 0
+						local accGyXhat = 0
+						for j = 1, B do
+							local idx = base + j
+							local gyVal = gy._storage[idx]
+							accGy += gyVal
+							accGyXhat += gyVal * (xc._storage[idx] * invI)
+						end
+						sumGy[i] = accGy
+						sumGyXhat[i] = accGyXhat
+					end
+					local M = B
 					for i = 1, D do
 						local base = (i - 1) * B
 						local g = gamma._storage[i]
 						local invI = inv._storage[i]
+						local sumGyI = sumGy[i]
+						local sumGyXhatI = sumGyXhat[i]
 						for j = 1, B do
 							local idx = base + j
-							xGrad._storage[idx] += gy._storage[idx] * g * invI
+							local gyVal = gy._storage[idx]
+							local xhat = xc._storage[idx] * invI
+							local term = (M * gyVal - sumGyI - xhat * sumGyXhatI) / M
+							xGrad._storage[idx] += g * invI * term
 						end
 					end
 					task.synchronize()

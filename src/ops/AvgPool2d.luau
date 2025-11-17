@@ -19,7 +19,7 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 							local ii = (i - 1) * stride + ki
 							local jj = (j - 1) * stride + kj
 							local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b
-							sum += X._storage[xi + 1]
+							sum += X._storage[xi]
 						end
 					end
 					local yi = (((c - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + b

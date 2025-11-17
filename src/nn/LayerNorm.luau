@@ -85,10 +85,26 @@ return function(D: number, eps: number?): Types.Module<Types.Tensor, Types.Tenso
 					if not x._grad then
 						x._grad = Tensor.zeros(x._shape)
 					end
+					local xGrad = x._grad :: Types.Tensor
+					local inv = table.create(B, 0)
 					for j = 1, B do
+						inv[j] = 1 / math.sqrt(var._storage[j] + (eps :: number))
+					end
+					for j = 1, B do
+						local invJ = inv[j]
+						local sumDxhat = 0
+						local sumDxhatXhat = 0
 						for i = 1, D do
 							local idx = (i - 1) * B + j
-							x._grad._storage[idx] += gy._storage[idx] * gamma._storage[i]
+							local dxhat = gy._storage[idx] * gamma._storage[i]
+							sumDxhat += dxhat
+							sumDxhatXhat += dxhat * norm._storage[idx]
+						end
+						for i = 1, D do
+							local idx = (i - 1) * B + j
+							local dxhat = gy._storage[idx] * gamma._storage[i]
+							local term = dxhat - sumDxhat / D - norm._storage[idx] * sumDxhatXhat / D
+							xGrad._storage[idx] += term * invJ
 						end
 					end
 					task.synchronize()
