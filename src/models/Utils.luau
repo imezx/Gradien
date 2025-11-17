@@ -3,6 +3,9 @@ local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 local Activations = require("../nn/Activations")
+local Util = require("../Util")
+
+local assert = Util.Assert
 
 export type ActivationName = "relu" | "gelu" | "tanh" | "silu" | "sigmoid" | "mish" | "elu" | "leaky_relu" | "selu"
 

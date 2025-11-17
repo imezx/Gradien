@@ -2,6 +2,8 @@
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Losses = require("../nn/Losses")
+local Util = require("../Util")
+local assert = Util.Assert
 
 -- argmax over actions per column (batch)
 local function maxPerColumn(Q)

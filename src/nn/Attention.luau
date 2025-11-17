@@ -4,6 +4,9 @@ local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 local Linear = require("./Linear")
 local SoftmaxOps = require("../ops/Softmax")
+local Util = require("../Util")
+
+local assert = Util.Assert
 
 type TensorT = Types.Tensor
 type Module = Types.Module<TensorT, TensorT>

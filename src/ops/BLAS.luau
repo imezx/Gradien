@@ -1,6 +1,8 @@
 --!optimize 2
 local Tensor = require("../Tensor")
 local Types = require("../Types")
+local Util = require("../Util")
+local assert = Util.Assert
 
 -- Matrix multiply: A{M,K} x B{K,N} -> C{M,N}
 --@param A Tensor

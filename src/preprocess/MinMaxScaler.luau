@@ -1,5 +1,8 @@
 --!optimize 2
 local Tensor = require("../Tensor")
+local Util = require("../Util")
+local assert = Util.Assert
+
 return function(a: number, b: number)
 	a = a or 0
 	b = b or 1

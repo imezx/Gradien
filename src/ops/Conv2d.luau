@@ -3,6 +3,8 @@ local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 local BLAS = require("../ops/BLAS")
+local Util = require("../Util")
+local assert = Util.Assert
 
 local function copyShape(shape: { number }): { number }
 	local out = table.create(#shape)
@@ -21,6 +23,7 @@ local function makeMatrixView(tensor: Types.Tensor, rows: number, cols: number):
 		_parents = nil,
 		_backprop = nil,
 		_grad = nil,
+		_size = nil,
 	}
 end
 

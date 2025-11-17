@@ -4,6 +4,8 @@ local Types = require("../Types")
 local Linear = require("./Linear")
 local Activations = require("./Activations")
 local Dropout = require("./Dropout")
+local Util = require("../Util")
+local assert = Util.Assert
 
 type Tensor = Types.Tensor
 type Module = Types.Module

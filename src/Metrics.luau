@@ -1,6 +1,7 @@
 --!optimize 2
 local Types = require("./Types")
 local M = {}
+
 function M.accuracy(logits: Types.Tensor, targets: Types.Tensor): number
 	task.desynchronize()
 	local C, B = logits._shape[1], logits._shape[2]
@@ -22,6 +23,7 @@ function M.accuracy(logits: Types.Tensor, targets: Types.Tensor): number
 	task.synchronize()
 	return correct / B
 end
+
 function M.topk(logits: Types.Tensor, targets: Types.Tensor, k: number): number
 	task.desynchronize()
 	local C, B = logits._shape[1], logits._shape[2]
@@ -49,6 +51,7 @@ function M.topk(logits: Types.Tensor, targets: Types.Tensor, k: number): number
 	task.synchronize()
 	return hit / B
 end
+
 function M.mse(pred: Types.Tensor, target: Types.Tensor): number
 	task.desynchronize()
 	local s = 0
@@ -59,6 +62,7 @@ function M.mse(pred: Types.Tensor, target: Types.Tensor): number
 	task.synchronize()
 	return s / pred._shape[#pred._shape]
 end
+
 function M.prf1(pred: Types.Tensor, target: Types.Tensor, C: number): (number, number, number)
 	task.desynchronize()
 	local yhat: { number }, B: number
@@ -109,6 +113,7 @@ function M.prf1(pred: Types.Tensor, target: Types.Tensor, C: number): (number, n
 	task.synchronize()
 	return sumP / C, sumR / C, sumF / C
 end
+
 function M.confusion(pred: Types.Tensor, target: Types.Tensor, C: number): { { number } }
 	task.desynchronize()
 	local yhat: { number }, B: number
@@ -146,4 +151,5 @@ function M.confusion(pred: Types.Tensor, target: Types.Tensor, C: number): { { n
 	task.synchronize()
 	return mat
 end
+
 return M

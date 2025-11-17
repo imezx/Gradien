@@ -1,4 +1,5 @@
 --!optimize 2
+local assert = require("./Assert")
 local Visual2D = {}
 
 local RunService = game:GetService("RunService")

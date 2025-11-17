@@ -2,6 +2,7 @@
 --!optimize 2
 --@Eternity_Devs
 --from Warp lib & extended
+local assert = require("./Assert")
 local Buffer = {}
 Buffer.__index = Buffer
 

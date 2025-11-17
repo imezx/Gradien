@@ -1,4 +1,7 @@
 --!optimize 2
+local Util = require("../Util")
+local assert = Util.Assert
+
 return function(C: number)
 	local mu = {}
 	local var = {}

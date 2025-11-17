@@ -1,12 +1,11 @@
 --!optimize 2
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
-local RNG = require("../Util/RNG")
 local Types = require("../Types")
 
 return function(p: number?, training: boolean?, rng: Random?): Types.Module<Types.Tensor, Types.Tensor>
-	p = p or 0.2
-	rng = rng or Random.new()
+	local p = p or 0.2
+	local rng = rng or Random.new()
 	local keep = 1 - p
 	return {
 		_train = type(training) == "boolean" and training or true,
@@ -25,7 +24,7 @@ return function(p: number?, training: boolean?, rng: Random?): Types.Module<Type
 			task.desynchronize()
 			local smask = table.create(B, 0)
 			for b = 1, B do
-				smask[b] = (RNG.uniform(0, 1, rng) < keep) and 1 or 0
+				smask[b] = (rng:NextNumber(0, 1) < keep) and 1 or 0
 			end
 			for d = 1, D do
 				local base = (d - 1) * B

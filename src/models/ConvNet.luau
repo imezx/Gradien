@@ -1,6 +1,7 @@
 --!optimize 2
 local Types = require("../Types")
 local Utils = require("./Utils")
+local Util = require("../Util")
 local Conv2d = require("../nn/Conv2d")
 local BatchNorm2d = require("../nn/BatchNorm2d")
 local MaxPool2d = require("../nn/MaxPool2d")
@@ -9,6 +10,8 @@ local Dropout = require("../nn/Dropout")
 local Flatten = require("../nn/Flatten")
 local Linear = require("../nn/Linear")
 local Sequential = require("../nn/Sequential")
+
+local assert = Util.Assert
 
 export type PoolConfig = {
 	kind: "max" | "avg",

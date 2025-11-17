@@ -1,6 +1,8 @@
 --!optimize 2
 local Tensor = require("../Tensor")
 local Buffer = require("../Util/Buffer")
+local Util = require("../Util")
+local assert = Util.Assert
 
 return function(capacity: number)
 	local size, pos = 0, 1

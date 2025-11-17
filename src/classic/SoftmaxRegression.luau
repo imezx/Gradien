@@ -4,6 +4,9 @@ local Losses = require("../nn/Losses")
 local Tape = require("../autograd/Tape")
 local Tensor = require("../Tensor")
 local Adam = require("../optim/Adam")
+local Util = require("../Util")
+
+local assert = Util.Assert
 
 --@class SoftmaxRegression
 --@field fc any

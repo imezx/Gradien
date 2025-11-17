@@ -1,5 +1,7 @@
 --!optimize 2
 local Tensor = require("../Tensor")
+local Util = require("../Util")
+local assert = Util.Assert
 
 return function()
 	local mu: { number } = nil

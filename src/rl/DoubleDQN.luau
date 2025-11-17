@@ -2,6 +2,8 @@
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Losses = require("../nn/Losses")
+local Util = require("../Util")
+local assert = Util.Assert
 
 local function maxPerColumn(Q)
 	local A, B = Q._shape[1], Q._shape[2]

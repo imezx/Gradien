@@ -1,5 +1,7 @@
 --!optimize 2
 local Tensor = require("../Tensor")
+local Util = require("../Util")
+local assert = Util.Assert
 
 return function(K: number, iters: number)
 	iters = iters or 20

@@ -3,6 +3,8 @@ local Types = require("./Types")
 local Util = require("./Util")
 local State = {}
 
+local assert = Util.Assert
+
 --@param params { Types.Tensor } -- list of Tensors from module:parameters()
 --@return Snapshot
 function State.dump(params: { Types.Tensor }): Types.Snapshot

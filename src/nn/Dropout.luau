@@ -1,11 +1,10 @@
 --!optimize 2
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
-local RNG = require("../Util/RNG")
 local Types = require("../Types")
 
 return function(p: number?, training: boolean?, rng: Random?): Types.Module<Types.Tensor, Types.Tensor>
-	rng = rng or Random.new()
+	local rng = rng or Random.new()
 	local drop = p or 0.2
 	local keep = 1 - drop
 	return {
@@ -24,7 +23,7 @@ return function(p: number?, training: boolean?, rng: Random?): Types.Module<Type
 			local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
 			local mask = table.create(#x._storage, 0)
 			for i = 1, #x._storage do
-				local m = (RNG.uniform(0, 1, rng) >= drop) and 1 or 0
+				local m = (rng:NextNumber(0, 1) >= drop) and 1 or 0
 				mask[i] = m
 				y._storage[i] = x._storage[i] * m / keep
 			end

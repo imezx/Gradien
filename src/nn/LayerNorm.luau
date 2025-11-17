@@ -3,6 +3,8 @@ local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Reduce = require("../ops/Reduce")
 local Types = require("../Types")
+local Util = require("../Util")
+local assert = Util.Assert
 
 -- LayerNorm across features for each column (shape {D,B}).
 return function(D: number, eps: number?): Types.Module<Types.Tensor, Types.Tensor>

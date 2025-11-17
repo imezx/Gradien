@@ -1,6 +1,8 @@
 --!optimize 2
 local Tensor = require("../Tensor")
 local Buffer = require("../Util/Buffer")
+local Util = require("../Util")
+local assert = Util.Assert
 
 ---@class UniformReplay
 ---@field capacity integer

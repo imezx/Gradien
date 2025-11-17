@@ -2,6 +2,8 @@
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Types = require("../Types")
+local Util = require("../Util")
+local assert = Util.Assert
 
 --@param C number
 --@return table

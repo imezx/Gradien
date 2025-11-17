@@ -1,5 +1,7 @@
 --!optimize 2
 local Types = require("../Types")
+local Util = require("../Util")
+local assert = Util.Assert
 
 --@class KNN
 --@field X any
@@ -48,7 +50,7 @@ function KNN:predict(Q: Types.Tensor): { number }
 			votes[label] = (votes[label] or 0) + 1
 		end
 		local best, arg = -1, 1
-		for lbl, cnt in pairs(votes) do
+		for lbl, cnt in votes do
 			if cnt > best then
 				best, arg = cnt, lbl
 			end

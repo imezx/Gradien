@@ -3,6 +3,8 @@ local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Losses = require("../nn/Losses")
 local Softmax = require("../nn/Softmax")
+local Util = require("../Util")
+local assert = Util.Assert
 
 return function(cfg)
 	assert(cfg.policy, "PPO: cfg.policy (policy network) required")

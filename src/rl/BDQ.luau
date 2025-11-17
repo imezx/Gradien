@@ -3,6 +3,8 @@ local G = script.Parent.Parent
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Losses = require("../nn/Losses")
+local Util = require("../Util")
+local assert = Util.Assert
 
 local function makeActLayer(actAny: any)
 	local A = G.NN.Activations

@@ -2,6 +2,9 @@
 local Tape = require("../autograd/Tape")
 local Tensor = require("../Tensor")
 local Types = require("../Types")
+local Util = require("../Util")
+
+local assert = Util.Assert
 
 local A = {}
 

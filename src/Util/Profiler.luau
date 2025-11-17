@@ -1,5 +1,7 @@
 --!optimize 2
 local Types = require("../Types")
+local assert = require("./Assert")
+
 local Profiler = {}
 
 local fmt = string.format

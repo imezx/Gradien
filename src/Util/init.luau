@@ -77,5 +77,6 @@ Util.Parallel = require("@self/Parallel")
 Util.GradStats = require("@self/GradStats")
 Util.Buffer = require("@self/Buffer")
 Util.Profiler = require("@self/Profiler")
+Util.Assert = require("@self/Assert")
 
 return Util

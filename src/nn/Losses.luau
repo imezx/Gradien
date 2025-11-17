@@ -2,6 +2,8 @@
 local Tensor = require("../Tensor")
 local Softmax = require("./Softmax")
 local Types = require("../Types")
+local Util = require("../Util")
+local assert = Util.Assert
 
 local L = {}
 

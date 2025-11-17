@@ -1,10 +1,13 @@
 --!optimize 2
 local Types = require("../Types")
 local Utils = require("./Utils")
+local Util = require("../Util")
 local Linear = require("../nn/Linear")
 local LayerNorm = require("../nn/LayerNorm")
 local Dropout = require("../nn/Dropout")
 local Sequential = require("../nn/Sequential")
+
+local assert = Util.Assert
 
 export type MLPConfig = {
 	inputDim: number,

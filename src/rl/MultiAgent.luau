@@ -1,5 +1,7 @@
 --!optimize 2
 local Types = require("../Types")
+local Util = require("../Util")
+local assert = Util.Assert
 
 local MultiAgent = {}
 MultiAgent.__index = MultiAgent

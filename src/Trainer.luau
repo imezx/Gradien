@@ -3,9 +3,12 @@ local Tape = require("./autograd/Tape")
 local Types = require("./Types")
 local Losses = require("./nn/Losses")
 local Metrics = require("./Metrics")
+local Util = require("./Util")
 
 local Trainer = {}
 Trainer.__index = Trainer
+
+local assert = Util.Assert
 
 local function asArrayCallbacks(raw: Types.Callbacks?, default: { Types.CallbackFn }?): { Types.CallbackFn }
 	if type(raw) ~= "table" then

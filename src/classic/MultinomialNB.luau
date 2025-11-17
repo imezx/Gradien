@@ -1,4 +1,7 @@
 --!optimize 2
+local Util = require("../Util")
+local assert = Util.Assert
+
 return function(C: number, alpha: number)
 	alpha = alpha or 1.0
 	local classCount = table.create(C, 0)
