@@ -24,6 +24,7 @@ Gradien.Models = {
 	TransformerEncoder = require("@self/models/TransformerEncoder"),
 	SequenceClassifier = require("@self/models/SequenceClassifier"),
 	AutoEncoder = require("@self/models/AutoEncoder"),
+	QIMHNN = require("@self/models/QIMHNN"),
 	Utils = require("@self/models/Utils"),
 }
 Gradien.Ops = {
@@ -73,6 +74,7 @@ Gradien.Optim = {
 	Schedulers = require("@self/optim/Schedulers"),
 	Lion = require("@self/optim/Lion"),
 	Lookahead = require("@self/optim/Lookahead"),
+	Metaheuristic = require("@self/optim/Metaheuristic"),
 }
 Gradien.RL = {
 	Replay = require("@self/rl/Replay"),
