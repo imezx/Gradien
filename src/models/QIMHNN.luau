@@ -390,7 +390,6 @@ return function(config: QIMHNNConfig): Types.Module<Types.Tensor, Types.Tensor>
 			table.insert(layers, drop)
 			table.insert(trainables, drop)
 		end
-
 		inDim = hiddenDim
 	end
 
@@ -406,6 +405,9 @@ return function(config: QIMHNNConfig): Types.Module<Types.Tensor, Types.Tensor>
 
 	return {
 		forward = function(_, x: Types.Tensor): Types.Tensor
+			return seq:forward(x)
+		end,
+		act = function(_, x: Types.Tensor): Types.Tensor
 			return seq:forward(x)
 		end,
 		parameters = function(_): { Types.Tensor }
