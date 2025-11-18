@@ -11,6 +11,31 @@ local Linear = require("../../nn/Linear")
 local Sequential = require("../../nn/Sequential")
 
 local assert = Util.Assert
+local sizeFromShape = Util.sizeFromShape
+
+local function sameShape(a: { number }, b: { number }): boolean
+	if #a ~= #b then
+		return false
+	end
+	for i = 1, #a do
+		if a[i] ~= b[i] then
+			return false
+		end
+	end
+	return true
+end
+
+local function ensureScratchTensor(buf: Types.Tensor?, shape: { number }): Types.Tensor
+	if not buf or not sameShape(buf._shape, shape) then
+		return Tensor.zeros(shape, "f64", false)
+	end
+	task.desynchronize()
+	for i = 1, #buf._storage do
+		buf._storage[i] = 0
+	end
+	task.synchronize()
+	return buf
+end
 
 export type QILayerConfig = {
 	inDim: number,
@@ -63,9 +88,11 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 		useSuperposition = useSuperposition,
 		useInterference = useInterference,
 		useEntanglement = useEntanglement,
+		_scratch = {},
 		forward = function(self, x: Types.Tensor): Types.Tensor
 			local B = x._shape[2]
 			local outF = config.outDim
+			local scratch = self._scratch
 			-- linear
 			local z_real = Tape.matmul(self.W_real, x)
 			local hasImag = (self.useSuperposition or self.useInterference)
@@ -74,7 +101,8 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 				z_imag = Tape.matmul(self.W_imag, x)
 			end
 			-- y_sup: superposition amplitude mix
-			local y_sup = Tensor.zeros({ outF, B }, "f64", false)
+			local y_sup = ensureScratchTensor(scratch.y_sup, { outF, B })
+			scratch.y_sup = y_sup
 			task.desynchronize()
 			for i = 1, outF do
 				for j = 1, B do
@@ -91,7 +119,8 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 			end
 			task.synchronize()
 			-- scale by 1 + alpha * cos(phase), phase = atan2(zi, zr)
-			local y_int = Tensor.zeros({ outF, B }, "f64", y_sup._requiresGrad)
+			local y_int = ensureScratchTensor(scratch.y_int, { outF, B })
+			scratch.y_int = y_int
 			task.desynchronize()
 			for i = 1, outF do
 				for j = 1, B do
@@ -109,14 +138,14 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 			task.synchronize()
 			local stored_y_int: Types.Tensor = nil
 			if self.useEntanglement and self.entanglement then
-				stored_y_int = Tensor.zeros({ outF, B }, "f64", false)
+				stored_y_int = ensureScratchTensor(scratch.stored_y_int, { outF, B })
+				scratch.stored_y_int = stored_y_int
 				task.desynchronize()
 				for i = 1, #stored_y_int._storage do
 					stored_y_int._storage[i] = y_int._storage[i]
 				end
 				task.synchronize()
 			end
-			task.synchronize()
 			-- residual E @ y_int
 			local y_preBias = y_int
 			local entangled: Types.Tensor = nil
@@ -179,7 +208,10 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 						Tape.noGrad(function()
 							yIntT = Tensor.transpose(stored_y_int)
 						end)
-						local dEnt = Tape.matmul(gy, yIntT)
+						local dEnt
+						Tape.noGrad(function()
+							dEnt = Tape.matmul(gy, yIntT)
+						end)
 						task.desynchronize()
 						for i = 1, #self.entanglement._grad._storage do
 							self.entanglement._grad._storage[i] += entangleBeta * dEnt._storage[i]
@@ -191,8 +223,12 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 					Tape.noGrad(function()
 						ET = Tensor.transpose(self.entanglement)
 					end)
-					local add = Tape.matmul(ET, gy)
-					local tmp = Tensor.zeros({ outF, B }, "f64", false)
+					local add
+					Tape.noGrad(function()
+						add = Tape.matmul(ET, gy)
+					end)
+					local tmp = ensureScratchTensor(scratch.gy_int_tmp, { outF, B })
+					scratch.gy_int_tmp = tmp
 					task.desynchronize()
 					for i = 1, #tmp._storage do
 						tmp._storage[i] = gy._storage[i] + entangleBeta * add._storage[i]
@@ -200,8 +236,13 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 					task.synchronize()
 					gy_int = tmp
 				end
-				local gz_real = Tensor.zeros({ outF, B }, "f64", false)
-				local gz_imag = if usedImag then Tensor.zeros({ outF, B }, "f64", false) else nil
+				local gz_real = ensureScratchTensor(scratch.gz_real, { outF, B })
+				scratch.gz_real = gz_real
+				local gz_imag = nil
+				if usedImag then
+					gz_imag = ensureScratchTensor(scratch.gz_imag, { outF, B })
+					scratch.gz_imag = gz_imag
+				end
 				task.desynchronize()
 				for i = 1, outF do
 					for j = 1, B do
@@ -272,7 +313,10 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 					if not self.W_imag._grad then
 						self.W_imag._grad = Tensor.zeros({ outF, inF })
 					end
-					local dWi = Tape.matmul(gz_imag, xT)
+					local dWi
+					Tape.noGrad(function()
+						dWi = Tape.matmul(gz_imag, xT)
+					end)
 					task.desynchronize()
 					for i = 1, #self.W_imag._grad._storage do
 						self.W_imag._grad._storage[i] += dWi._storage[i]
@@ -282,7 +326,8 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 				-- dx = W_real^T @ gz_real + (if used) W_imag^T @ gz_imag
 				local dx: Types.Tensor = nil
 				if x._requiresGrad then
-					dx = Tensor.zeros({ inF, B }, "f64", false)
+					dx = ensureScratchTensor(scratch.dx, { inF, B })
+					scratch.dx = dx
 					local WT
 					Tape.noGrad(function()
 						WT = Tensor.transpose(self.W_real)
