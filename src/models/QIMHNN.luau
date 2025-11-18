@@ -74,7 +74,7 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 				z_imag = Tape.matmul(self.W_imag, x)
 			end
 			-- y_sup: superposition amplitude mix
-			local y_sup = Tensor.zeros({ outF, B }, "f64", x._requiresGrad or self.W_real._requiresGrad)
+			local y_sup = Tensor.zeros({ outF, B }, "f64", false)
 			task.desynchronize()
 			for i = 1, outF do
 				for j = 1, B do
@@ -107,16 +107,19 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 				end
 			end
 			task.synchronize()
-			-- store y_int before entanglement and bias
-			local stored_y_int = Tensor.zeros({ outF, B }, "f64", y_int._requiresGrad)
-			task.desynchronize()
-			for i = 1, #stored_y_int._storage do
-				stored_y_int._storage[i] = y_int._storage[i]
+			local stored_y_int: Types.Tensor = nil
+			if self.useEntanglement and self.entanglement then
+				stored_y_int = Tensor.zeros({ outF, B }, "f64", false)
+				task.desynchronize()
+				for i = 1, #stored_y_int._storage do
+					stored_y_int._storage[i] = y_int._storage[i]
+				end
+				task.synchronize()
 			end
 			task.synchronize()
 			-- residual E @ y_int
 			local y_preBias = y_int
-			local entangled: Types.Tensor? = nil
+			local entangled: Types.Tensor = nil
 			if self.useEntanglement and self.entanglement then
 				entangled = Tape.matmul(self.entanglement, y_int)
 				task.desynchronize()
@@ -167,12 +170,12 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 				-- y_preBias = y_int + beta * (E @ y_int)
 				local gy_int = gy -- start with gy
 				if self.useEntanglement and self.entanglement then
-					-- dE += beta * gy @ y_int^T  (y_int here is pre-entanglement, from stored_y_int)
+					-- dE += beta * gy @ y_int^T
 					if self.entanglement._requiresGrad then
 						if not self.entanglement._grad then
 							self.entanglement._grad = Tensor.zeros({ outF, outF })
 						end
-						local yIntT
+						local yIntT: Types.Tensor = nil
 						Tape.noGrad(function()
 							yIntT = Tensor.transpose(stored_y_int)
 						end)
@@ -277,14 +280,17 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 					task.synchronize()
 				end
 				-- dx = W_real^T @ gz_real + (if used) W_imag^T @ gz_imag
-				local dx: Types.Tensor? = nil
+				local dx: Types.Tensor = nil
 				if x._requiresGrad then
 					dx = Tensor.zeros({ inF, B }, "f64", false)
 					local WT
 					Tape.noGrad(function()
 						WT = Tensor.transpose(self.W_real)
 					end)
-					local dxr = Tape.matmul(WT, gz_real)
+					local dxr
+					Tape.noGrad(function()
+						dxr = Tape.matmul(WT, gz_real)
+					end)
 					task.desynchronize()
 					for i = 1, #dx._storage do
 						dx._storage[i] = dxr._storage[i]
@@ -295,7 +301,10 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 						Tape.noGrad(function()
 							WIT = Tensor.transpose(self.W_imag)
 						end)
-						local dxi = Tape.matmul(WIT, gz_imag)
+						local dxi
+						Tape.noGrad(function()
+							dxi = Tape.matmul(WIT, gz_imag)
+						end)
 						task.desynchronize()
 						for i = 1, #dx._storage do
 							dx._storage[i] += dxi._storage[i]
@@ -311,7 +320,7 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 					end
 					task.synchronize()
 				end
-				return dx
+				return nil -- no grad
 			end)
 		end,
 		parameters = function(self): { Types.Tensor }
