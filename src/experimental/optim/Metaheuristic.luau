@@ -1,8 +1,8 @@
 --!optimize 2
 -- Metaheuristic Optimizer for QIMHNN
-local Types = require("../Types")
-local Tensor = require("../Tensor")
-local Util = require("../Util")
+local Types = require("../../Types")
+local Tensor = require("../../Tensor")
+local Util = require("../../Util")
 
 local assert = Util.Assert
 

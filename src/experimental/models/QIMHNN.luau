@@ -1,14 +1,14 @@
 --!optimize 2
 -- Quantum-Inspired Metaheuristic Neural Network (QIMHNN)
-local Types = require("../Types")
-local Tensor = require("../Tensor")
-local Tape = require("../autograd/Tape")
-local Util = require("../Util")
-local Utils = require("./Utils")
-local LayerNorm = require("../nn/LayerNorm")
-local Dropout = require("../nn/Dropout")
-local Linear = require("../nn/Linear")
-local Sequential = require("../nn/Sequential")
+local Types = require("../../Types")
+local Tensor = require("../../Tensor")
+local Tape = require("../../autograd/Tape")
+local Util = require("../../Util")
+local Utils = require("../../models/Utils")
+local LayerNorm = require("../../nn/LayerNorm")
+local Dropout = require("../../nn/Dropout")
+local Linear = require("../../nn/Linear")
+local Sequential = require("../../nn/Sequential")
 
 local assert = Util.Assert
 

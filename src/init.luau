@@ -1,7 +1,7 @@
 --[[
-Gradien (ML Library) Version 1.4.0-rc1
+Gradien (by @Eternity_Devs)
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
-written by @Eternity_Devs
+Version 1.4.0-rc1
 ]]
 --!strict
 local Gradien = {}
@@ -17,6 +17,16 @@ Gradien.Util = require("@self/Util")
 Gradien.Tensor = require("@self/Tensor")
 Gradien.Debug = require("@self/Debug")
 
+Gradien.Experimental = {
+	Models = {
+		QIMHNN = require("@self/experimental/models/QIMHNN"),
+	},
+	Optim = {
+		Metaheuristic = require("@self/experimental/optim/Metaheuristic"),
+		SwarmPSO = require("@self/experimental/optim/SwarmPSO"),
+	},
+}
+
 Gradien.Models = {
 	MLP = require("@self/models/MLP"),
 	ResMLP = require("@self/models/ResMLP"),
@@ -24,7 +34,6 @@ Gradien.Models = {
 	TransformerEncoder = require("@self/models/TransformerEncoder"),
 	SequenceClassifier = require("@self/models/SequenceClassifier"),
 	AutoEncoder = require("@self/models/AutoEncoder"),
-	QIMHNN = require("@self/models/QIMHNN"),
 	Utils = require("@self/models/Utils"),
 }
 Gradien.Ops = {
@@ -74,8 +83,6 @@ Gradien.Optim = {
 	Schedulers = require("@self/optim/Schedulers"),
 	Lion = require("@self/optim/Lion"),
 	Lookahead = require("@self/optim/Lookahead"),
-	Metaheuristic = require("@self/optim/Metaheuristic"),
-	SwarmPSO = require("@self/optim/SwarmPSO"),
 }
 Gradien.RL = {
 	Replay = require("@self/rl/Replay"),
