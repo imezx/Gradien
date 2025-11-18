@@ -4,9 +4,6 @@ local Types = require("../Types")
 local assert = Util.Assert
 
 local function scaleGrads(params: { Types.Tensor }, factor: number)
-	if not params then
-		return
-	end
 	task.desynchronize()
 	for _, p in params do
 		local g = p._grad
@@ -25,13 +22,14 @@ return function(opt: Types.Optimizer, steps: number, params: { Types.Tensor }?, 
 	normalize = normalize == nil and true or normalize
 	local counter: number = 0
 	local invSteps: number = 1 / steps
+	local doScale: boolean = normalize and params ~= nil
 	return {
 		step = function(_)
 			counter += 1
 			if counter < steps then
 				return
 			end
-			if normalize and params then
+			if doScale then
 				scaleGrads(params, invSteps)
 			end
 			opt:step()
@@ -42,7 +40,7 @@ return function(opt: Types.Optimizer, steps: number, params: { Types.Tensor }?, 
 			if counter == 0 then
 				return
 			end
-			if normalize and params then
+			if doScale then
 				scaleGrads(params, 1 / counter)
 			end
 			opt:step()
@@ -85,6 +83,7 @@ return function(opt: Types.Optimizer, steps: number, params: { Types.Tensor }?, 
 			end
 			if state.normalize ~= nil then
 				normalize = state.normalize
+				doScale = normalize and params ~= nil
 			end
 			if state.optState ~= nil and opt.setState then
 				opt:setState(state.optState)
