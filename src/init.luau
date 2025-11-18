@@ -81,6 +81,7 @@ Gradien.Optim = {
 	RMSProp = require("@self/optim/RMSProp"),
 	Adagrad = require("@self/optim/Adagrad"),
 	Adafactor = require("@self/optim/Adafactor"),
+	Accumulated = require("@self/optim/Accumulated"),
 	Schedulers = require("@self/optim/Schedulers"),
 	Lion = require("@self/optim/Lion"),
 	Lookahead = require("@self/optim/Lookahead"),
