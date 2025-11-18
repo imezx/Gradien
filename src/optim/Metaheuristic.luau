@@ -12,62 +12,87 @@ export type MetaheuristicConfig = {
 	inertia: number?,
 	cognitive: number?,
 	social: number?,
+	gradScale: number?,
 	mutationRate: number?,
 	mutationStrength: number?,
 }
 
 return function(params: { Types.Tensor }, config: MetaheuristicConfig): Types.Optimizer
 	assert(config.lr and config.lr > 0, "MetaheuristicOptimizer: lr required")
+
 	local lr = config.lr
-	local swarmSize = config.swarmSize or 10
+	local _swarmSize = config.swarmSize or 10
 	local inertia = config.inertia or 0.9
 	local cognitive = config.cognitive or 1.5
 	local social = config.social or 1.5
-	local mutationRate = config.mutationRate or 0.1
+	local gradScale = config.gradScale or 0.1
+	local mutationRate = config.mutationRate or 0.05
 	local mutationStrength = config.mutationStrength or 0.01
 
-	local velocities: { { Types.Tensor } } = {}
-	local personalBest: { { Types.Tensor } } = {}
+	local velocities: { Types.Tensor } = {}
+	local personalBest: { Types.Tensor } = {}
 	local globalBest: { Types.Tensor } = {}
+	local personalBestScore: { number } = {}
+	local globalBestScore: { number } = {}
 
-	for i = 1, swarmSize do
-		local velocity: { Types.Tensor } = {}
-		local pbest: { Types.Tensor } = {}
-
-		for _, param in ipairs(params) do
-			local v = Tensor.zeros(param._shape, param._dtype, false)
-			local pb = Tensor.zeros(param._shape, param._dtype, false)
-
-			task.desynchronize()
-			for j = 1, #param._storage do
-				v._storage[j] = (math.random() * 2 - 1) * 0.001
-				pb._storage[j] = param._storage[j]
-			end
-			task.synchronize()
-
-			table.insert(velocity, v)
-			table.insert(pbest, pb)
-		end
-
-		table.insert(velocities, velocity)
-		table.insert(personalBest, pbest)
-	end
-	for _, param in ipairs(params) do
+	for i, param in ipairs(params) do
+		local v = Tensor.zeros(param._shape, param._dtype, false)
+		local pb = Tensor.zeros(param._shape, param._dtype, false)
 		local gb = Tensor.zeros(param._shape, param._dtype, false)
+
 		task.desynchronize()
 		for j = 1, #param._storage do
+			v._storage[j] = (math.random() * 2 - 1) * 0.001
+			pb._storage[j] = param._storage[j]
 			gb._storage[j] = param._storage[j]
 		end
 		task.synchronize()
-		table.insert(globalBest, gb)
+
+		velocities[i] = v
+		personalBest[i] = pb
+		globalBest[i] = gb
+
+		personalBestScore[i] = math.huge
+		globalBestScore[i] = math.huge
 	end
 	return {
 		step = function()
 			for i, param in ipairs(params) do
 				if param._grad then
-					local particleIdx = ((i - 1) % swarmSize) + 1
-					local v = velocities[particleIdx][i]
-					local pb = personalBest[particleIdx][i]
+					local gradNormSq = 0
+					task.desynchronize()
+					for j = 1, #param._grad._storage do
+						local g = param._grad._storage[j]
+						gradNormSq += g * g
+					end
+					task.synchronize()
+					local gradNorm = math.sqrt(gradNormSq)
+
+					if gradNorm < personalBestScore[i] then
+						personalBestScore[i] = gradNorm
+						local pb = personalBest[i]
+						task.desynchronize()
+						for j = 1, #param._storage do
+							pb._storage[j] = param._storage[j]
+						end
+						task.synchronize()
+					end
+
+					if gradNorm < globalBestScore[i] then
+						globalBestScore[i] = gradNorm
+						local gb = globalBest[i]
+						task.desynchronize()
+						for j = 1, #param._storage do
+							gb._storage[j] = param._storage[j]
+						end
+						task.synchronize()
+					end
+				end
+			end
+			for i, param in ipairs(params) do
+				if param._grad then
+					local v = velocities[i]
+					local pb = personalBest[i]
 					local gb = globalBest[i]
 
 					task.desynchronize()
@@ -76,31 +101,24 @@ return function(params: { Types.Tensor }, config: MetaheuristicConfig): Types.Op
 						local r2 = math.random()
 						local grad = param._grad._storage[j]
 
-						v._storage[j] = inertia * v._storage[j]
-							+ cognitive * r1 * (pb._storage[j] - param._storage[j])
-							+ social * r2 * (gb._storage[j] - param._storage[j])
-							- 0.1 * grad -- Incorporate gradient
+						local current = param._storage[j]
+						local vj = v._storage[j]
+						local pbj = pb._storage[j]
+						local gbj = gb._storage[j]
 
-						param._storage[j] = param._storage[j] + lr * v._storage[j]
+						vj = inertia * vj
+							+ cognitive * r1 * (pbj - current)
+							+ social * r2 * (gbj - current)
+							- gradScale * grad
 
-						-- mutation
+						local newVal = current + lr * vj
+
 						if math.random() < mutationRate then
-							param._storage[j] = param._storage[j] + (math.random() * 2 - 1) * mutationStrength
+							newVal += (math.random() * 2 - 1) * mutationStrength
 						end
 
-						if math.abs(param._storage[j] - pb._storage[j]) < 0.01 then
-							pb._storage[j] = param._storage[j]
-						end
-
-						if math.abs(param._storage[j] - gb._storage[j]) < 0.01 then
-							gb._storage[j] = param._storage[j]
-						end
-					end
-					task.synchronize()
-				else
-					task.desynchronize()
-					for j = 1, #param._storage do
-						param._storage[j] = param._storage[j] - lr * (param._grad and param._grad._storage[j] or 0)
+						v._storage[j] = vj
+						param._storage[j] = newVal
 					end
 					task.synchronize()
 				end
@@ -120,6 +138,8 @@ return function(params: { Types.Tensor }, config: MetaheuristicConfig): Types.Op
 		getState = function()
 			return nil
 		end,
-		setState = function(_self, state) end,
+		setState = function(_self, _state)
+			return
+		end,
 	}
 end
