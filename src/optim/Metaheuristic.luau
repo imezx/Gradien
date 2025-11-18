@@ -40,85 +40,98 @@ return function(params: { Types.Tensor }, config: MetaheuristicConfig): Types.Op
 		local pb = Tensor.zeros(param._shape, param._dtype, false)
 		local gb = Tensor.zeros(param._shape, param._dtype, false)
 
+		local pStore = param._storage
+		local vStore = v._storage
+		local pbStore = pb._storage
+		local gbStore = gb._storage
+
 		task.desynchronize()
-		for j = 1, #param._storage do
-			v._storage[j] = (math.random() * 2 - 1) * 0.001
-			pb._storage[j] = param._storage[j]
-			gb._storage[j] = param._storage[j]
+		for j = 1, #pStore do
+			vStore[j] = (math.random() * 2 - 1) * 0.001
+			pbStore[j] = pStore[j]
+			gbStore[j] = pStore[j]
 		end
 		task.synchronize()
 
 		velocities[i] = v
 		personalBest[i] = pb
 		globalBest[i] = gb
-
 		personalBestScore[i] = math.huge
 		globalBestScore[i] = math.huge
 	end
 	return {
 		step = function()
 			for i, param in ipairs(params) do
-				if param._grad then
+				local grad = param._grad
+				if grad then
+					local gStore = grad._storage
 					local gradNormSq = 0
+
 					task.desynchronize()
-					for j = 1, #param._grad._storage do
-						local g = param._grad._storage[j]
+					for j = 1, #gStore do
+						local g = gStore[j]
 						gradNormSq += g * g
 					end
 					task.synchronize()
-					local gradNorm = math.sqrt(gradNormSq)
 
-					if gradNorm < personalBestScore[i] then
-						personalBestScore[i] = gradNorm
+					local score = gradNormSq
+					if score < personalBestScore[i] then
+						personalBestScore[i] = score
 						local pb = personalBest[i]
+						local pStore = param._storage
+						local pbStore = pb._storage
 						task.desynchronize()
-						for j = 1, #param._storage do
-							pb._storage[j] = param._storage[j]
+						for j = 1, #pStore do
+							pbStore[j] = pStore[j]
 						end
 						task.synchronize()
 					end
-
-					if gradNorm < globalBestScore[i] then
-						globalBestScore[i] = gradNorm
+					if score < globalBestScore[i] then
+						globalBestScore[i] = score
 						local gb = globalBest[i]
+						local pStore = param._storage
+						local gbStore = gb._storage
 						task.desynchronize()
-						for j = 1, #param._storage do
-							gb._storage[j] = param._storage[j]
+						for j = 1, #pStore do
+							gbStore[j] = pStore[j]
 						end
 						task.synchronize()
 					end
 				end
 			end
 			for i, param in ipairs(params) do
-				if param._grad then
+				local grad = param._grad
+				if grad then
 					local v = velocities[i]
 					local pb = personalBest[i]
 					local gb = globalBest[i]
 
+					local pStore = param._storage
+					local gStore = grad._storage
+					local vStore = v._storage
+					local pbStore = pb._storage
+					local gbStore = gb._storage
 					task.desynchronize()
-					for j = 1, #param._storage do
+					for j = 1, #pStore do
 						local r1 = math.random()
 						local r2 = math.random()
-						local grad = param._grad._storage[j]
+						local g = gStore[j]
 
-						local current = param._storage[j]
-						local vj = v._storage[j]
-						local pbj = pb._storage[j]
-						local gbj = gb._storage[j]
-
+						local current = pStore[j]
+						local vj = vStore[j]
+						local pbj = pbStore[j]
+						local gbj = gbStore[j]
 						vj = inertia * vj
 							+ cognitive * r1 * (pbj - current)
 							+ social * r2 * (gbj - current)
-							- gradScale * grad
+							- gradScale * g
 
 						local newVal = current + lr * vj
-
-						if math.random() < mutationRate then
+						if mutationRate > 0 and math.random() < mutationRate then
 							newVal += (math.random() * 2 - 1) * mutationStrength
 						end
-
-						v._storage[j] = vj
-						param._storage[j] = newVal
+						vStore[j] = vj
+						pStore[j] = newVal
 					end
 					task.synchronize()
 				end
@@ -126,10 +139,12 @@ return function(params: { Types.Tensor }, config: MetaheuristicConfig): Types.Op
 		end,
 		zeroGrad = function()
 			for _, param in ipairs(params) do
-				if param._grad then
+				local grad = param._grad
+				if grad then
+					local gStore = grad._storage
 					task.desynchronize()
-					for i = 1, #param._grad._storage do
-						param._grad._storage[i] = 0
+					for i = 1, #gStore do
+						gStore[i] = 0
 					end
 					task.synchronize()
 				end

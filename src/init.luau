@@ -75,6 +75,7 @@ Gradien.Optim = {
 	Lion = require("@self/optim/Lion"),
 	Lookahead = require("@self/optim/Lookahead"),
 	Metaheuristic = require("@self/optim/Metaheuristic"),
+	SwarmPSO = require("@self/optim/SwarmPSO"),
 }
 Gradien.RL = {
 	Replay = require("@self/rl/Replay"),
