@@ -18,9 +18,7 @@ export type QILayerConfig = {
 	useSuperposition: boolean?,
 	useInterference: boolean?,
 	useEntanglement: boolean?,
-	quantumAmplitude: number?,
-	interferenceStrength: number?,
-	entanglementStrength: number?,
+	quantumAmplitude: number?, -- amp for |z|
 	initScale: number?,
 }
 
@@ -32,21 +30,22 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 	local useInterference = config.useInterference ~= false
 	local useEntanglement = config.useEntanglement ~= false
 	local quantumAmplitude = config.quantumAmplitude or 0.1
-	local alpha = config.interferenceStrength or 0.1
-	local beta = config.entanglementStrength or 0.1
 	local initScale = config.initScale or 0.1
+
+	local interferenceAlpha = 0.1
+	local entangleBeta = 0.1
 	local eps = 1e-8
+
 	local W_real = Tensor.zeros({ config.outDim, config.inDim }, "f64", true)
-	local W_imag = Tensor.zeros({ config.outDim, config.inDim }, "f64", useSuperposition)
+	local W_imag = Tensor.zeros({ config.outDim, config.inDim }, "f64", true) -- used when superposition OR interference enabled
 	local b = Tensor.zeros({ config.outDim, 1 }, "f64", true)
 	local entanglement = if useEntanglement then Tensor.zeros({ config.outDim, config.outDim }, "f64", true) else nil
+
 	task.desynchronize()
 	local fanIn, fanOut = config.inDim, config.outDim
 	local bound = initScale * math.sqrt(2 / (fanIn + fanOut))
 	for i = 1, #W_real._storage do
 		W_real._storage[i] = (math.random() * 2 - 1) * bound
-	end
-	for i = 1, #W_imag._storage do
 		W_imag._storage[i] = (math.random() * 2 - 1) * bound * 0.5
 	end
 	if entanglement then
@@ -60,63 +59,69 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 		W_imag = W_imag,
 		b = b,
 		entanglement = entanglement,
+		quantumAmplitude = quantumAmplitude,
 		useSuperposition = useSuperposition,
 		useInterference = useInterference,
 		useEntanglement = useEntanglement,
-		quantumAmplitude = quantumAmplitude,
-		alpha = alpha,
-		beta = beta,
 		forward = function(self, x: Types.Tensor): Types.Tensor
 			local B = x._shape[2]
 			local outF = config.outDim
 			-- linear
-			local out_real = Tape.matmul(self.W_real, x) -- [outF, B]
-			local out_imag: Types.Tensor? = nil
-			if self.useSuperposition then
-				out_imag = Tape.matmul(self.W_imag, x) -- [outF, B]
+			local z_real = Tape.matmul(self.W_real, x)
+			local hasImag = (self.useSuperposition or self.useInterference)
+			local z_imag: Types.Tensor? = nil
+			if hasImag then
+				z_imag = Tape.matmul(self.W_imag, x)
 			end
-			-- out_mix = amp * |z| + real
-			local out_mix = Tensor.zeros({ outF, B }, "f64", x._requiresGrad or self.W_real._requiresGrad)
-			task.desynchronize()
-			if self.useSuperposition and out_imag then
-				for i = 1, outF do
-					for j = 1, B do
-						local idx = (i - 1) * B + j
-						local real = out_real._storage[idx]
-						local imag = out_imag._storage[idx]
-						local mag = math.sqrt(real * real + imag * imag + eps)
-						out_mix._storage[idx] = self.quantumAmplitude * mag + real
-					end
-				end
-			else
-				for k = 1, #out_mix._storage do
-					out_mix._storage[k] = out_real._storage[k]
-				end
-			end
-			task.synchronize()
-			-- f = 1 + alpha * cos(phase), phase = atan2(imag, real_pre)
-			local out_after_interf = Tensor.zeros({ outF, B }, "f64", out_mix._requiresGrad)
+			-- y_sup: superposition amplitude mix
+			local y_sup = Tensor.zeros({ outF, B }, "f64", x._requiresGrad or self.W_real._requiresGrad)
 			task.desynchronize()
 			for i = 1, outF do
 				for j = 1, B do
 					local idx = (i - 1) * B + j
-					local real_pre = out_real._storage[idx]
-					local imag_pre = (out_imag and out_imag._storage[idx]) or 0
-					local phase = math.atan2(imag_pre, real_pre)
-					local f = 1 + self.alpha * math.cos(phase)
-					out_after_interf._storage[idx] = out_mix._storage[idx] * f
+					local zr = z_real._storage[idx]
+					if self.useSuperposition and z_imag then
+						local zi = z_imag._storage[idx]
+						local mag = math.sqrt(zr * zr + zi * zi + eps)
+						y_sup._storage[idx] = zr + self.quantumAmplitude * mag
+					else
+						y_sup._storage[idx] = zr
+					end
 				end
 			end
 			task.synchronize()
-			-- y = z + beta * (E @ z)
-			local out_before_ent = out_after_interf
-			local out = out_before_ent
+			-- scale by 1 + alpha * cos(phase), phase = atan2(zi, zr)
+			local y_int = Tensor.zeros({ outF, B }, "f64", y_sup._requiresGrad)
+			task.desynchronize()
+			for i = 1, outF do
+				for j = 1, B do
+					local idx = (i - 1) * B + j
+					local scale = 1
+					if self.useInterference then
+						local zr = z_real._storage[idx]
+						local zi = if z_imag then z_imag._storage[idx] else 0
+						local phase = math.atan2(zi, zr)
+						scale = 1 + interferenceAlpha * math.cos(phase)
+					end
+					y_int._storage[idx] = y_sup._storage[idx] * scale
+				end
+			end
+			task.synchronize()
+			-- store y_int before entanglement and bias
+			local stored_y_int = Tensor.zeros({ outF, B }, "f64", y_int._requiresGrad)
+			task.desynchronize()
+			for i = 1, #stored_y_int._storage do
+				stored_y_int._storage[i] = y_int._storage[i]
+			end
+			task.synchronize()
+			-- residual E @ y_int
+			local y_preBias = y_int
 			local entangled: Types.Tensor? = nil
 			if self.useEntanglement and self.entanglement then
-				entangled = Tape.matmul(self.entanglement, out_before_ent)
+				entangled = Tape.matmul(self.entanglement, y_int)
 				task.desynchronize()
-				for k = 1, #out._storage do
-					out._storage[k] = out._storage[k] + self.beta * entangled._storage[k]
+				for i = 1, #y_preBias._storage do
+					y_preBias._storage[i] = y_preBias._storage[i] + entangleBeta * entangled._storage[i]
 				end
 				task.synchronize()
 			end
@@ -125,24 +130,30 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 			for i = 1, outF do
 				local bi = self.b._storage[i]
 				for j = 1, B do
-					out._storage[(i - 1) * B + j] += bi
+					y_preBias._storage[(i - 1) * B + j] += bi
 				end
 			end
 			task.synchronize()
-			local stored_out_real = out_real
-			local stored_out_imag = out_imag
-			local stored_out_mix = out_mix
-			local stored_out_before_ent = out_before_ent
-
-			local nodeInputs = { self.W_real, self.b, x }
-			if self.useSuperposition then table.insert(nodeInputs, 2, self.W_imag) end
-			if self.useEntanglement and self.entanglement then table.insert(nodeInputs, self.entanglement) end
-
-			return Tape.makeNode(out, nodeInputs, function(gy: Types.Tensor)
-				-- gy: dL/dy (post-bias, post-entanglement)
-				-- dL/db = sum_j gy[i,j]
+			local stored_z_real = z_real
+			local stored_z_imag = z_imag
+			-- local stored_y_sup = y_sup
+			local usedImag = hasImag
+			local parents: { Types.Tensor } = { self.W_real, self.b, x }
+			if self.useSuperposition or self.useInterference then
+				table.insert(parents, self.W_imag)
+			end
+			if self.useEntanglement and self.entanglement then
+				table.insert(parents, self.entanglement)
+			end
+			return Tape.makeNode(y_preBias, parents, function(gy: Types.Tensor)
+				-- gy is dL/d(y_preBias)
+				local outF = config.outDim
+				local inF = config.inDim
+				local B = gy._shape[2]
 				if self.b._requiresGrad then
-					if not self.b._grad then self.b._grad = Tensor.zeros({ outF, 1 }) end
+					if not self.b._grad then
+						self.b._grad = Tensor.zeros({ outF, 1 })
+					end
 					task.desynchronize()
 					for i = 1, outF do
 						local acc = 0
@@ -153,140 +164,164 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 					end
 					task.synchronize()
 				end
-
-				-- z = out_before_ent; y = z + beta * (E @ z)
-				local gy_to_z = gy -- start with downstream grad
-				if self.useEntanglement and self.entanglement and stored_out_before_ent then
-					-- Add (E^T @ gy) * beta to gy_to_z
+				-- y_preBias = y_int + beta * (E @ y_int)
+				local gy_int = gy -- start with gy
+				if self.useEntanglement and self.entanglement then
+					-- dE += beta * gy @ y_int^T  (y_int here is pre-entanglement, from stored_y_int)
+					if self.entanglement._requiresGrad then
+						if not self.entanglement._grad then
+							self.entanglement._grad = Tensor.zeros({ outF, outF })
+						end
+						local yIntT
+						Tape.noGrad(function()
+							yIntT = Tensor.transpose(stored_y_int)
+						end)
+						local dEnt = Tape.matmul(gy, yIntT)
+						task.desynchronize()
+						for i = 1, #self.entanglement._grad._storage do
+							self.entanglement._grad._storage[i] += entangleBeta * dEnt._storage[i]
+						end
+						task.synchronize()
+					end
+					-- E: gy_int = gy + beta * (E^T @ gy)
 					local ET
 					Tape.noGrad(function()
 						ET = Tensor.transpose(self.entanglement)
 					end)
-					local add = Tape.matmul(ET, gy) -- [outF,B]
+					local add = Tape.matmul(ET, gy)
+					local tmp = Tensor.zeros({ outF, B }, "f64", false)
 					task.desynchronize()
-					for k = 1, #gy_to_z._storage do
-						gy_to_z._storage[k] = gy_to_z._storage[k] + self.beta * add._storage[k]
+					for i = 1, #tmp._storage do
+						tmp._storage[i] = gy._storage[i] + entangleBeta * add._storage[i]
 					end
 					task.synchronize()
-					-- Grad wrt E: beta * (gy @ z^T)
-					if self.entanglement._requiresGrad then
-						if not self.entanglement._grad then self.entanglement._grad = Tensor.zeros({ outF, outF }) end
-						local zT
-						Tape.noGrad(function()
-							zT = Tensor.transpose(stored_out_before_ent)
-						end)
-						local dE = Tape.matmul(gy, zT)
-						task.desynchronize()
-						for i = 1, #self.entanglement._grad._storage do
-							self.entanglement._grad._storage[i] += self.beta * dE._storage[i]
-						end
-						task.synchronize()
-					end
+					gy_int = tmp
 				end
-
-				local g_real_total = Tensor.zeros({ outF, B }, "f64", false)
-				local g_imag_total = Tensor.zeros({ outF, B }, "f64", false)
-
+				local gz_real = Tensor.zeros({ outF, B }, "f64", false)
+				local gz_imag = if usedImag then Tensor.zeros({ outF, B }, "f64", false) else nil
 				task.desynchronize()
 				for i = 1, outF do
 					for j = 1, B do
 						local idx = (i - 1) * B + j
-						local real_pre = stored_out_real._storage[idx]
-						local imag_pre = (stored_out_imag and stored_out_imag._storage[idx]) or 0
-						local mag = math.sqrt(real_pre * real_pre + imag_pre * imag_pre + eps)
+						local zr = stored_z_real._storage[idx]
+						local zi = if stored_z_imag then stored_z_imag._storage[idx] else 0
+						local denom = zr * zr + zi * zi + eps
+						local mag = math.sqrt(denom)
 
-						-- Interference factor and derivatives
-						local phase = math.atan2(imag_pre, real_pre)
-						local cosP = math.cos(phase)
-						local sinP = math.sin(phase)
-						local f = 1 + self.alpha * cosP
-						local denom = (real_pre * real_pre + imag_pre * imag_pre + eps)
-						-- dphase/dreal = -imag/denom ; dphase/dimag = real/denom
-						local dphase_dreal = -imag_pre / denom
-						local dphase_dimag =  real_pre / denom
-						-- df/d(real|imag) = -alpha * sin(phase) * dphase/d(real|imag)
-						local df_dreal = -self.alpha * sinP * dphase_dreal
-						local df_dimag = -self.alpha * sinP * dphase_dimag
+						local ysup = if self.useSuperposition then (zr + self.quantumAmplitude * mag) else zr
 
-						-- Product rule through interference: z = out_mix * f
-						local g_down = gy_to_z._storage[idx]
-						local out_mix_val = stored_out_mix._storage[idx]
-						local g_outmix_from_interf = g_down * f
-						local g_real_from_interf = g_down * out_mix_val * df_dreal
-						local g_imag_from_interf = g_down * out_mix_val * df_dimag
-
-						-- Superposition: out_mix = amp * mag + real
-						local dreal_domix = self.quantumAmplitude * (real_pre / mag) + 1
-						local dimag_domix = self.quantumAmplitude * (imag_pre / mag)
-
-						local g_real = g_outmix_from_interf * dreal_domix + g_real_from_interf
-						local g_imag = g_outmix_from_interf * dimag_domix + g_imag_from_interf
-
-						g_real_total._storage[idx] = g_real
-						g_imag_total._storage[idx] = g_imag
+						local M = 1
+						local phase = 0
+						if self.useInterference then
+							phase = math.atan2(zi, zr)
+							M = 1 + interferenceAlpha * math.cos(phase)
+						end
+						-- gy wrt y_sup and wrt M
+						local gyij = gy_int._storage[idx]
+						local gy_sup = gyij * M
+						local gM = gyij * ysup
+						local gzR_phase, gzI_phase = 0, 0
+						if self.useInterference then
+							local gphase = -interferenceAlpha * gM * math.sin(phase)
+							-- d phase/dzr = -zi/denom ; d phase/dzi = zr/denom
+							gzR_phase = gphase * (-zi / denom)
+							gzI_phase = gphase * (zr / denom)
+						end
+						-- superposition path
+						local gzR_sup, gzI_sup = 0, 0
+						if self.useSuperposition then
+							gzR_sup = gy_sup * (1 + self.quantumAmplitude * (zr / mag))
+							gzI_sup = gy_sup * (self.quantumAmplitude * (zi / mag))
+						else
+							gzR_sup = gy_sup
+							gzI_sup = 0
+						end
+						local totalR = gzR_sup + gzR_phase
+						gz_real._storage[idx] = gz_real._storage[idx] + totalR
+						if gz_imag then
+							local totalI = gzI_sup + gzI_phase
+							gz_imag._storage[idx] = gz_imag._storage[idx] + totalI
+						end
 					end
 				end
 				task.synchronize()
-				-- dW_real = g_real_total @ x^T
+				local xT
+				Tape.noGrad(function()
+					xT = Tensor.transpose(x)
+				end)
+				-- dW_real += gz_real @ x^T
 				if self.W_real._requiresGrad then
-					if not self.W_real._grad then self.W_real._grad = Tensor.zeros({ outF, config.inDim }) end
-					local xT
+					if not self.W_real._grad then
+						self.W_real._grad = Tensor.zeros({ outF, inF })
+					end
+					local dW
 					Tape.noGrad(function()
-						xT = Tensor.transpose(x)
+						dW = Tape.matmul(gz_real, xT)
 					end)
-					local dW = Tape.matmul(g_real_total, xT)
 					task.desynchronize()
-					for k = 1, #self.W_real._grad._storage do
-						self.W_real._grad._storage[k] += dW._storage[k]
+					for i = 1, #self.W_real._grad._storage do
+						self.W_real._grad._storage[i] += dW._storage[i]
 					end
 					task.synchronize()
 				end
-				-- dW_imag = g_imag_total @ x^T (only if superposition used)
-				if self.useSuperposition and self.W_imag._requiresGrad then
-					if not self.W_imag._grad then self.W_imag._grad = Tensor.zeros({ outF, config.inDim }) end
-					local xT
-					Tape.noGrad(function()
-						xT = Tensor.transpose(x)
-					end)
-					local dW_im = Tape.matmul(g_imag_total, xT)
+				-- dW_imag
+				if gz_imag and self.W_imag._requiresGrad then
+					if not self.W_imag._grad then
+						self.W_imag._grad = Tensor.zeros({ outF, inF })
+					end
+					local dWi = Tape.matmul(gz_imag, xT)
 					task.desynchronize()
-					for k = 1, #self.W_imag._grad._storage do
-						self.W_imag._grad._storage[k] += dW_im._storage[k]
+					for i = 1, #self.W_imag._grad._storage do
+						self.W_imag._grad._storage[i] += dWi._storage[i]
 					end
 					task.synchronize()
 				end
-				-- dx = W_real^T @ g_real_total + (if superpos) W_imag^T @ g_imag_total
+				-- dx = W_real^T @ gz_real + (if used) W_imag^T @ gz_imag
+				local dx: Types.Tensor? = nil
 				if x._requiresGrad then
-					if not x._grad then x._grad = Tensor.zeros({ config.inDim, B }) end
+					dx = Tensor.zeros({ inF, B }, "f64", false)
 					local WT
 					Tape.noGrad(function()
 						WT = Tensor.transpose(self.W_real)
 					end)
-					local dx = Tape.matmul(WT, g_real_total)
-					if self.useSuperposition then
+					local dxr = Tape.matmul(WT, gz_real)
+					task.desynchronize()
+					for i = 1, #dx._storage do
+						dx._storage[i] = dxr._storage[i]
+					end
+					task.synchronize()
+					if gz_imag then
 						local WIT
 						Tape.noGrad(function()
 							WIT = Tensor.transpose(self.W_imag)
 						end)
-						local dx_im = Tape.matmul(WIT, g_imag_total)
+						local dxi = Tape.matmul(WIT, gz_imag)
 						task.desynchronize()
-						for k = 1, #dx._storage do
-							dx._storage[k] += dx_im._storage[k]
+						for i = 1, #dx._storage do
+							dx._storage[i] += dxi._storage[i]
 						end
 						task.synchronize()
 					end
+					if not x._grad then
+						x._grad = Tensor.zeros({ inF, B })
+					end
 					task.desynchronize()
-					for k = 1, #x._grad._storage do
-						x._grad._storage[k] += dx._storage[k]
+					for i = 1, #x._grad._storage do
+						x._grad._storage[i] += dx._storage[i]
 					end
 					task.synchronize()
 				end
+				return dx
 			end)
 		end,
 		parameters = function(self): { Types.Tensor }
 			local params = { self.W_real, self.b }
-			if self.useSuperposition then table.insert(params, 2, self.W_imag) end
-			if self.useEntanglement and self.entanglement then table.insert(params, self.entanglement) end
+			if self.useSuperposition or self.useInterference then
+				table.insert(params, 2, self.W_imag)
+			end
+			if self.entanglement then
+				table.insert(params, self.entanglement)
+			end
 			return params
 		end,
 	}
@@ -302,8 +337,6 @@ export type QIMHNNConfig = {
 	useInterference: boolean?,
 	useEntanglement: boolean?,
 	quantumAmplitude: number?,
-	interferenceStrength: number?,
-	entanglementStrength: number?,
 	dropout: number?,
 	layerNorm: boolean?,
 }
@@ -315,6 +348,7 @@ return function(config: QIMHNNConfig): Types.Module<Types.Tensor, Types.Tensor>
 	local hidden = if config.hiddenDims and #config.hiddenDims > 0
 		then table.clone(config.hiddenDims)
 		else { math.max(config.inputDim, config.outputDim) }
+
 	local dropProb = math.clamp(config.dropout or 0, 0, 0.95)
 	local layers = {}
 	local trainables: { any } = {}
@@ -322,6 +356,7 @@ return function(config: QIMHNNConfig): Types.Module<Types.Tensor, Types.Tensor>
 
 	for _, hiddenDim in ipairs(hidden) do
 		assert(hiddenDim > 0, "QIMHNN: hidden dimensions must be positive")
+
 		local qiLayer = QILayer({
 			inDim = inDim,
 			outDim = hiddenDim,
@@ -329,33 +364,37 @@ return function(config: QIMHNNConfig): Types.Module<Types.Tensor, Types.Tensor>
 			useInterference = config.useInterference,
 			useEntanglement = config.useEntanglement,
 			quantumAmplitude = config.quantumAmplitude or 0.1,
-			interferenceStrength = config.interferenceStrength or 0.1,
-			entanglementStrength = config.entanglementStrength or 0.1,
 		})
 		table.insert(layers, qiLayer)
 		table.insert(trainables, qiLayer)
+
 		if config.layerNorm then
 			local norm = LayerNorm(hiddenDim)
 			table.insert(layers, norm)
 			table.insert(trainables, norm)
 		end
+
 		table.insert(layers, Utils.makeActivationModule(config.activation))
+
 		if dropProb > 0 then
 			local drop = Dropout(dropProb)
 			table.insert(layers, drop)
 			table.insert(trainables, drop)
 		end
+
 		inDim = hiddenDim
 	end
 
 	local head = Linear(inDim, config.outputDim)
 	table.insert(layers, head)
 	table.insert(trainables, head)
+
 	if config.finalActivation then
 		table.insert(layers, Utils.makeActivationModule(config.finalActivation))
 	end
 
 	local seq = Sequential(layers)
+
 	return {
 		forward = function(_, x: Types.Tensor): Types.Tensor
 			return seq:forward(x)
