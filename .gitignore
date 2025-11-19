@@ -14,6 +14,5 @@ test.project.json
 rewrite
 generate.py
 .vscode
-bun.lock
 *.zip
 docs/.vitepress/*
