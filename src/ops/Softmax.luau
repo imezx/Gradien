@@ -5,34 +5,44 @@ local Types = require("../Types")
 
 local SoftmaxOps = {}
 
-local function stableSoftmax(logits: Types.Tensor): Types.Tensor
+local function stableSoftmax(logits: Types.Tensor, out: Types.Tensor)
+	local src = logits._storage
+	local dst = out._storage
+	local C, B = logits._shape[1], logits._shape[2]
 	task.desynchronize()
-	local D, B = logits._shape[1], logits._shape[2]
-	local P = Tensor.zeros({ D, B }, logits._dtype, logits._requiresGrad)
 	for j = 1, B do
-		local m = -1 / 0
-		for i = 1, D do
-			local v = logits._storage[(i - 1) * B + j]
-			if v > m then
-				m = v
+		local colStart = (1 - 1) * B + j
+		local maxVal = -math.huge
+		local idx = colStart -- pointer
+		for i = 1, C do
+			local v = src[idx]
+			if v > maxVal then
+				maxVal = v
 			end
+			idx += B
 		end
 		local sum = 0
-		for i = 1, D do
-			local e = math.exp(logits._storage[(i - 1) * B + j] - m)
-			P._storage[(i - 1) * B + j] = e
+		idx = colStart
+		for i = 1, C do
+			local e = math.exp(src[idx] - maxVal)
+			dst[idx] = e
 			sum += e
+			idx += B
 		end
-		for i = 1, D do
-			P._storage[(i - 1) * B + j] /= sum
+		-- normalize
+		local invSum = 1 / sum
+		idx = colStart
+		for i = 1, C do
+			dst[idx] *= invSum
+			idx += B
 		end
 	end
 	task.synchronize()
-	return P
 end
 
 function SoftmaxOps.forward(logits: Types.Tensor): Types.Tensor
-	local P = stableSoftmax(logits)
+	local P = Tensor.zeros(logits._shape, logits._dtype, logits._requiresGrad)
+	stableSoftmax(logits, P)
 	if not logits._requiresGrad then
 		return P
 	end
@@ -40,21 +50,27 @@ function SoftmaxOps.forward(logits: Types.Tensor): Types.Tensor
 		if not logits._requiresGrad then
 			return
 		end
-		logits._grad = logits._grad or Tensor.zeros(logits._shape, logits._dtype, false)
+		if not logits._grad then
+			logits._grad = Tensor.zeros(logits._shape, logits._dtype, false)
+		end
 		task.desynchronize()
-		local gradStore = logits._grad._storage
-		local probStore = P._storage
-		local gyStore = gy._storage
-		local D, B = logits._shape[1], logits._shape[2]
+		local grads = logits._grad._storage
+		local probs = P._storage
+		local gys = gy._storage
+		local C, B = logits._shape[1], logits._shape[2]
+		-- dx_i = y_i * (dy_i - dot(y, dy))
 		for j = 1, B do
+			local colStart = (1 - 1) * B + j
 			local dot = 0
-			for i = 1, D do
-				local idx = (i - 1) * B + j
-				dot += probStore[idx] * gyStore[idx]
+			local idx = colStart
+			for i = 1, C do
+				dot += probs[idx] * gys[idx]
+				idx += B
 			end
-			for i = 1, D do
-				local idx = (i - 1) * B + j
-				gradStore[idx] += probStore[idx] * (gyStore[idx] - dot)
+			idx = colStart
+			for i = 1, C do
+				grads[idx] += probs[idx] * (gys[idx] - dot)
+				idx += B
 			end
 		end
 		task.synchronize()
@@ -62,4 +78,3 @@ function SoftmaxOps.forward(logits: Types.Tensor): Types.Tensor
 end
 
 return SoftmaxOps
-
