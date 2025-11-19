@@ -8,322 +8,337 @@ local assert = Util.Assert
 
 local A = {}
 
---@param x @Tensor
---@return Tensor
+local function prep(x: Types.Tensor): Types.Tensor
+	return Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+end
+
+local function ensureGrad(x: Types.Tensor): Types.Tensor?
+	if not x._grad then
+		x._grad = Tensor.zeros(x._shape)
+	end
+	return x._grad
+end
+
 function A.ReLU(x: Types.Tensor): Types.Tensor
 	return Tape.relu(x)
 end
 
---@param x @Tensor
---@return Tensor
 function A.Sigmoid(x: Types.Tensor): Types.Tensor
 	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		y._storage[i] = 1 / (1 + math.exp(-x._storage[i]))
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		ys[i] = 1 / (1 + math.exp(-xs[i]))
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			task.desynchronize()
-			if not x._grad then
-				x._grad = Tensor.zeros(x._shape)
-			end
-			for i = 1, #y._storage do
-				local s = y._storage[i]
-				x._grad._storage[i] += gy._storage[i] * s * (1 - s)
-			end
-			task.synchronize()
+		if not x._requiresGrad then
+			return
 		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #ys do
+			local s = ys[i]
+			gxs[i] += gys[i] * s * (1 - s)
+		end
+		task.synchronize()
 	end)
 end
 
---@param x @Tensor
---@return Tensor
 function A.Tanh(x: Types.Tensor): Types.Tensor
 	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		y._storage[i] = math.tanh(x._storage[i])
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		ys[i] = math.tanh(xs[i])
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			task.desynchronize()
-			if not x._grad then
-				x._grad = Tensor.zeros(x._shape)
-			end
-			for i = 1, #y._storage do
-				local t = y._storage[i]
-				x._grad._storage[i] += gy._storage[i] * (1 - t * t)
-			end
-			task.synchronize()
+		if not x._requiresGrad then
+			return
 		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #ys do
+			local t = ys[i]
+			gxs[i] += gys[i] * (1 - t * t)
+		end
+		task.synchronize()
 	end)
 end
 
---@param x @Tensor
---@return Tensor
 function A.GELU(x: Types.Tensor): Types.Tensor
 	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
 	local c = math.sqrt(2 / math.pi)
-	for i = 1, #x._storage do
-		local v = x._storage[i]
-		local t = c * (v + 0.044715 * v * v * v)
-		y._storage[i] = 0.5 * v * (1 + math.tanh(t))
+	local k = 0.044715
+
+	for i = 1, #xs do
+		local v = xs[i]
+		local cube = v * v * v
+		local inner = c * (v + k * cube)
+		ys[i] = 0.5 * v * (1 + math.tanh(inner))
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			task.desynchronize()
-			if not x._grad then
-				x._grad = Tensor.zeros(x._shape)
-			end
-			local c2 = math.sqrt(2 / math.pi)
-			for i = 1, #x._storage do
-				local v = x._storage[i]
-				local t = c2 * (v + 0.044715 * v * v * v)
-				local dt = c2 * (1 + 3 * 0.044715 * v * v)
-				local sech2 = 1 - math.tanh(t) ^ 2
-				x._grad._storage[i] += gy._storage[i] * (0.5 * (1 + math.tanh(t)) + 0.5 * v * sech2 * dt)
-			end
-			task.synchronize()
+		if not x._requiresGrad then
+			return
 		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		local c2 = math.sqrt(2 / math.pi)
+
+		for i = 1, #xs do
+			local v = xs[i]
+			local v2 = v * v
+			local inner = c2 * (v + 0.044715 * v * v2)
+			local t = math.tanh(inner)
+			local sech2 = 1 - t * t
+			local d_inner = c2 * (1 + 3 * 0.044715 * v2)
+
+			local d = 0.5 * (1 + t) + 0.5 * v * sech2 * d_inner
+			gxs[i] += gys[i] * d
+		end
+		task.synchronize()
 	end)
 end
 
---@param x @Tensor
---@param alpha number (default 0.01)
-function A.LeakyReLU(x: Types.Tensor, alpha: number): Types.Tensor
-	alpha = alpha or 0.01
+function A.LeakyReLU(x: Types.Tensor, alpha: number?): Types.Tensor
+	local a = alpha or 0.01
 	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		local v = x._storage[i]
-		y._storage[i] = (v > 0) and v or (alpha * v)
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		local v = xs[i]
+		ys[i] = (v > 0) and v or (a * v)
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			task.desynchronize()
-			if not x._grad then
-				x._grad = Tensor.zeros(x._shape)
-			end
-			for i = 1, #x._storage do
-				local v = x._storage[i]
-				local slope = (v > 0) and 1 or alpha
-				x._grad._storage[i] += gy._storage[i] * slope
-			end
-			task.synchronize()
+		if not x._requiresGrad then
+			return
 		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #xs do
+			local v = xs[i]
+			local slope = (v > 0) and 1 or a
+			gxs[i] += gys[i] * slope
+		end
+		task.synchronize()
 	end)
 end
 
---@param x @Tensor
---@param alpha number? (default 0.01)
---@return Tensor
 function A.ELU(x: Types.Tensor, alpha: number?): Types.Tensor
-	alpha = alpha or 1.0
+	local a = alpha or 1.0
 	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		local v = x._storage[i]
-		if v > 0 then
-			y._storage[i] = v
-		else
-			y._storage[i] = alpha * (math.exp(v) - 1)
-		end
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		local v = xs[i]
+		ys[i] = (v > 0) and v or (a * (math.exp(v) - 1))
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			task.desynchronize()
-			if not x._grad then
-				x._grad = Tensor.zeros(x._shape)
-			end
-			for i = 1, #x._storage do
-				local v = x._storage[i]
-				local gradv
-				if v > 0 then
-					gradv = 1
-				else
-					-- d/dx alpha*(e^x - 1) = alpha*e^x
-					-- Using y + alpha is numerically equivalent: alpha*e^x = (y + alpha)
-					gradv = (y._storage[i] + alpha)
-				end
-				x._grad._storage[i] += gy._storage[i] * gradv
-			end
-			task.synchronize()
+		if not x._requiresGrad then
+			return
 		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #xs do
+			local v = xs[i]
+			local d = (v > 0) and 1 or (ys[i] + a)
+			gxs[i] += gys[i] * d
+		end
+		task.synchronize()
 	end)
 end
 
---@param a @Tensor
---@param b @Tensor
---@return Tensor
+function A.SiLU(x: Types.Tensor): Types.Tensor
+	task.desynchronize()
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		local v = xs[i]
+		local s = 1 / (1 + math.exp(-v))
+		ys[i] = v * s
+	end
+	task.synchronize()
+	return Tape.makeNode(y, { x }, function(gy)
+		if not x._requiresGrad then
+			return
+		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #xs do
+			local v = xs[i]
+			local s = 1 / (1 + math.exp(-v))
+			local d = s + v * s * (1 - s)
+			gxs[i] += gys[i] * d
+		end
+		task.synchronize()
+	end)
+end
+
+function A.Mish(x: Types.Tensor): Types.Tensor
+	task.desynchronize()
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		local v = xs[i]
+		local sp = math.log(1 + math.exp(v)) -- softplus
+		ys[i] = v * math.tanh(sp)
+	end
+	task.synchronize()
+	return Tape.makeNode(y, { x }, function(gy)
+		if not x._requiresGrad then
+			return
+		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #xs do
+			local v = xs[i]
+			local sp = math.log(1 + math.exp(v))
+			local t = math.tanh(sp)
+			local s = 1 / (1 + math.exp(-v)) -- derivative of softplus is sigmoid
+			local d = t + v * (1 - t * t) * s
+			gxs[i] += gys[i] * d
+		end
+		task.synchronize()
+	end)
+end
+
+function A.SeLU(x: Types.Tensor, alpha: number?, lambda: number?): Types.Tensor
+	local a = alpha or 1.6732632423543772
+	local l = lambda or 1.0507009873554805
+	task.desynchronize()
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		local v = xs[i]
+		ys[i] = (v > 0) and (l * v) or (l * a * (math.exp(v) - 1))
+	end
+	task.synchronize()
+	return Tape.makeNode(y, { x }, function(gy)
+		if not x._requiresGrad then
+			return
+		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		local la = l * a
+		for i = 1, #xs do
+			local v = xs[i]
+			local d = (v > 0) and l or (la * math.exp(v))
+			gxs[i] += gys[i] * d
+		end
+		task.synchronize()
+	end)
+end
+
 function A.SwiGLU(a: Types.Tensor, b: Types.Tensor): Types.Tensor
-	assert(a._shape[1] == b._shape[1] and a._shape[2] == b._shape[2], "SwiGLU: a and b shapes must match")
+	assert(#a._storage == #b._storage, "SwiGLU: size mismatch")
 	task.desynchronize()
 	local y = Tensor.zeros(a._shape, a._dtype, a._requiresGrad or b._requiresGrad)
-	for i = 1, #a._storage do
-		local av = a._storage[i]
-		local bv = b._storage[i]
-		local s = 1 / (1 + math.exp(-av)) -- sigmoid(a)
-		local sw = av * s -- swish(a)
-		y._storage[i] = sw * bv
+	local as, bs, ys = a._storage, b._storage, y._storage
+	for i = 1, #as do
+		local val_a = as[i]
+		local s = 1 / (1 + math.exp(-val_a))
+		ys[i] = (val_a * s) * bs[i]
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { a, b }, function(gy)
-		-- dy/da = b * swish'(a), swish'(a) = s + a*s*(1-s)
-		-- dy/db = swish(a)
-		if a._requiresGrad or b._requiresGrad then
-			task.desynchronize()
-			if a._requiresGrad and not a._grad then a._grad = Tensor.zeros(a._shape) end
-			if b._requiresGrad and not b._grad then b._grad = Tensor.zeros(b._shape) end
-			for i = 1, #a._storage do
-				local av = a._storage[i]
-				local bv = b._storage[i]
-				local s = 1 / (1 + math.exp(-av))
-				local sw = av * s
-				local swp = s + av * s * (1 - s) -- swish'(a)
-				local g = gy._storage[i]
-				if a._requiresGrad then
-					a._grad._storage[i] += g * (bv * swp)
-				end
-				if b._requiresGrad then
-					b._grad._storage[i] += g * sw
-				end
-			end
-			task.synchronize()
+		if not (a._requiresGrad or b._requiresGrad) then
+			return
 		end
+
+		local ga = a._requiresGrad and ensureGrad(a)
+		local gb = b._requiresGrad and ensureGrad(b)
+
+		task.desynchronize()
+		local gas = ga and ga._storage
+		local gbs = gb and gb._storage
+		local gys = gy._storage
+
+		for i = 1, #as do
+			local val_a = as[i]
+			local val_b = bs[i]
+			local g = gys[i]
+
+			local s = 1 / (1 + math.exp(-val_a))
+			local swish = val_a * s
+
+			-- d/da (swish * b) = b * (swish + x * s * (1-s)) -> actually d/dx (x*s) = s + x*s*(1-s)
+			local d_swish = s + val_a * s * (1 - s)
+
+			if gas then
+				gas[i] += g * (val_b * d_swish)
+			end
+			if gbs then
+				gbs[i] += g * swish
+			end
+		end
+		task.synchronize()
 	end)
 end
 
---@param x @Tensor
---@return Tensor
-function A.SiLU(x: Types.Tensor): Types.Tensor
-	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		local v = x._storage[i]
-		local s = 1 / (1 + math.exp(-v))
-		y._storage[i] = v * s
-	end
-	task.synchronize()
-	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			if not x._grad then x._grad = Tensor.zeros(x._shape) end
-			task.desynchronize()
-			for i = 1, #x._storage do
-				local v = x._storage[i]
-				local s = 1 / (1 + math.exp(-v))
-				local swp = s + v * s * (1 - s) -- d/dx [x*sigmoid(x)]
-				x._grad._storage[i] += gy._storage[i] * swp
-			end
-			task.synchronize()
-		end
-	end)
-end
-
---@param x @Tensor
---@return Tensor
-function A.Mish(x: Types.Tensor): Types.Tensor
-	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		local v = x._storage[i]
-		local sp = math.log(1 + math.exp(v)) -- softplus
-		y._storage[i] = v * math.tanh(sp)
-	end
-	task.synchronize()
-	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			if not x._grad then x._grad = Tensor.zeros(x._shape) end
-			task.desynchronize()
-			for i = 1, #x._storage do
-				local v = x._storage[i]
-				local sp = math.log(1 + math.exp(v))
-				local t = math.tanh(sp)
-				local s = 1 / (1 + math.exp(-v)) -- d(sp)/dx = sigmoid(x)
-				local dy = t + v * (1 - t * t) * s
-				x._grad._storage[i] += gy._storage[i] * dy
-			end
-			task.synchronize()
-		end
-	end)
-end
-
---@param x @Tensor
---@param alpha number? (default 1.6732632423543772)
---@param lambda number? (default 1.0507009873554805)
---@return Tensor
-function A.SeLU(x: Types.Tensor, alpha: number?, lambda: number?): Types.Tensor
-	alpha = alpha or 1.6732632423543772
-	lambda = lambda or 1.0507009873554805
-	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
-	for i = 1, #x._storage do
-		local v = x._storage[i]
-		if v > 0 then
-			y._storage[i] = lambda * v
-		else
-			y._storage[i] = lambda * (alpha * (math.exp(v) - 1))
-		end
-	end
-	task.synchronize()
-	return Tape.makeNode(y, { x }, function(gy)
-		if x._requiresGrad then
-			if not x._grad then x._grad = Tensor.zeros(x._shape) end
-			task.desynchronize()
-			for i = 1, #x._storage do
-				local v = x._storage[i]
-				local g = (v > 0) and lambda or (lambda * alpha * math.exp(v))
-				x._grad._storage[i] += gy._storage[i] * g
-			end
-			task.synchronize()
-		end
-	end)
-end
-
---@param x Types.Tensor @shape {2H,B}
---@param hidden number? @optional expected H; validated if provided
---@return Types.Tensor @shape {H,B}
 function A.SwiGLUSplit(x: Types.Tensor, hidden: number?): Types.Tensor
 	local rows, B = x._shape[1], x._shape[2]
 	local H = math.floor(rows / 2)
-	assert(rows == 2 * H, "SwiGLUSplit: first dim must be even (2*H)")
-	if hidden then assert(hidden == H, "SwiGLUSplit: hidden mismatch") end
+	assert(rows == 2 * H, "SwiGLUSplit: first dim must be even")
+	if hidden then
+		assert(hidden == H, "SwiGLUSplit: hidden mismatch")
+	end
+
 	task.desynchronize()
 	local y = Tensor.zeros({ H, B }, x._dtype, x._requiresGrad)
+	local xs, ys = x._storage, y._storage
 	for j = 1, B do
+		-- a is at x[(0...H-1)*B + j]
+		-- b is at x[(H...2H-1)*B + j]
 		for i = 1, H do
-			local ai = (i - 1) * B + j
-			local bi = (H + i - 1) * B + j
-			local a = x._storage[ai]
-			local b = x._storage[bi]
-			local s = 1 / (1 + math.exp(-a))
-			local sw = a * s
-			y._storage[(i - 1) * B + j] = sw * b
+			local idx_a = (i - 1) * B + j
+			local idx_b = (i + H - 1) * B + j
+
+			local val_a = xs[idx_a]
+			local val_b = xs[idx_b]
+
+			local s = 1 / (1 + math.exp(-val_a))
+			ys[(i - 1) * B + j] = (val_a * s) * val_b
 		end
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
-		if not x._requiresGrad then return end
-		if not x._grad then x._grad = Tensor.zeros(x._shape) end
+		if not x._requiresGrad then
+			return
+		end
+		local gx = ensureGrad(x)
 		task.desynchronize()
+		local gxs = gx._storage
+		local gys = gy._storage
 		for j = 1, B do
 			for i = 1, H do
-				local ai = (i - 1) * B + j
-				local bi = (H + i - 1) * B + j
-				local a = x._storage[ai]
-				local b = x._storage[bi]
-				local s = 1 / (1 + math.exp(-a))
-				local sw = a * s
-				local swp = s + a * s * (1 - s)
-				local g = gy._storage[(i - 1) * B + j]
-				x._grad._storage[ai] += g * (b * swp) -- d/da
-				x._grad._storage[bi] += g * sw -- d/db
+				local idx_a = (i - 1) * B + j
+				local idx_b = (i + H - 1) * B + j
+				local idx_y = (i - 1) * B + j
+
+				local val_a = xs[idx_a]
+				local val_b = xs[idx_b]
+				local g = gys[idx_y]
+
+				local s = 1 / (1 + math.exp(-val_a))
+				local swish = val_a * s
+				local d_swish = s + val_a * s * (1 - s)
+
+				gxs[idx_a] += g * (val_b * d_swish)
+				gxs[idx_b] += g * swish
 			end
 		end
 		task.synchronize()
