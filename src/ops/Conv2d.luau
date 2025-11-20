@@ -74,7 +74,7 @@ local function im2col(
 					for ki = 1, KH do
 						for kj = 1, KW do
 							offset += 1
-							local xi = (((c - 1) * H + (i + ki - 2)) * Wd + (j + kj - 2)) * B + b
+							local xi = (((c - 1) * H + (i + ki - 2)) * Wd + (j + kj - 2)) * B + b - 1
 							cs[base + offset] = xs[xi + 1]
 						end
 					end
@@ -114,7 +114,7 @@ local function col2im(
 					for ki = 1, KH do
 						for kj = 1, KW do
 							offset += 1
-							local xi = (((c - 1) * H + (i + ki - 2)) * Wd + (j + kj - 2)) * B + b
+							local xi = (((c - 1) * H + (i + ki - 2)) * Wd + (j + kj - 2)) * B + b - 1
 							xs[xi + 1] += cs[base + offset]
 						end
 					end

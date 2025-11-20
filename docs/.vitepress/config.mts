@@ -20,10 +20,10 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting Started', link: '/guide/getting-started' },
-          { text: 'Creating a Neural Network', link: '/guide/create-nn' },
           { text: 'Core Concepts', link: '/guide/core-concepts' },
           { text: 'The Trainer Loop', link: '/guide/trainer' },
-          { text: 'Saving & Loading', link: '/guide/state' }
+          { text: 'Saving & Loading', link: '/guide/state' },
+          { text: 'Creating a Neural Network', link: '/guide/create-nn' },
         ]
       },
       {

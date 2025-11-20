@@ -26,7 +26,7 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 						for kj = 1, KW do
 							local ii = (i - 1) * stride + ki
 							local jj = (j - 1) * stride + kj
-							local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b
+							local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b - 1
 							local v = X._storage[xi + 1]
 							if v > best then
 								best = v
@@ -46,11 +46,12 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 	return Tape.makeNode(Y, { X }, function(gy: Types.Tensor)
 		if X._requiresGrad then
 			X._grad = X._grad or Tensor.zeros(X._shape, X._dtype, false)
+			local xGrad = X._grad :: Types.Tensor
 			task.desynchronize()
 			for idx = 1, #gy._storage do
 				local xi = argmax[idx]
 				if xi ~= 0 then
-					X._grad._storage[xi + 1] += gy._storage[idx]
+					xGrad._storage[xi + 1] += gy._storage[idx]
 				end
 			end
 			task.synchronize()

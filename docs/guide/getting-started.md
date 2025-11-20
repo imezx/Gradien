@@ -11,7 +11,7 @@ If you use [Wally](https://wally.run/) for dependency management, add Gradien to
 ::: code-group
 ```toml [wally.toml]
 [dependencies]
-Gradien = "eternitydevs/gradien@1.4.0-rc1"
+Gradien = "eternitydevs/gradien@1.4.0-rc2"
 ```
 
 ```bash [Terminal]
@@ -21,7 +21,7 @@ wally install
 
 ### `Method 2: RBXM`
 
-1. Download the latest release from the [GitHub Releases](https://github.com/EternityDevs/Gradien/releases) page.
+1. Download the latest release from the [GitHub Releases](https://github.com/imezx/Gradien/releases) page.
 2. Drag and drop the `.rbxm` file into **ReplicatedStorage** in Roblox Studio.
 
 ---

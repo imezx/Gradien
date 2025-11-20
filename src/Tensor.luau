@@ -96,6 +96,25 @@ function Tensor.fromArray(data: { number }, shape: { number }, dtype: Types.DTyp
 	return newTensor(table.clone(data), shape, dtype, requiresGrad, n)
 end
 
+function Tensor.randn(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Tensor
+	dtype = dtype or "f64"
+	local n = sizeFromShape(shape)
+	local storage = table.create(n)
+	task.desynchronize()
+	for i = 1, n, 2 do
+		local u1 = math.random()
+		local u2 = math.random()
+		local z0 = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+		local z1 = math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.pi * u2)
+		storage[i] = z0
+		if i + 1 <= n then
+			storage[i + 1] = z1
+		end
+	end
+	task.synchronize()
+	return newTensor(storage, shape, dtype, requiresGrad, n)
+end
+
 local function reshape(self: Tensor, newShape: { number }): Tensor
 	local size = ensureSize(self)
 	assert(sizeFromShape(newShape) == size, "reshape: element count mismatch")
@@ -300,6 +319,42 @@ local function narrow(self: Tensor, dim: number, startIdx: number, length: numbe
 	return slice(self, dim, startIdx, endIdx, 1)
 end
 
+local function sum(self: Tensor, dim: number?): Tensor
+	if dim then
+		error("Tensor.sum with dim not implemented yet")
+	end
+
+	local s = 0
+	local storage = self._storage
+	task.desynchronize()
+	for i = 1, #storage do
+		s += storage[i]
+	end
+	task.synchronize()
+
+	local out = newTensor({ s }, { 1 }, self._dtype, self._requiresGrad, 1)
+
+	if not self._requiresGrad then
+		return out
+	end
+	if not Tape then
+		Tape = require("./autograd/Tape") :: any
+	end
+
+	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
+		if self._requiresGrad then
+			self._grad = self._grad or Tensor.zeros(self._shape, self._dtype, false)
+			local g = gy._storage[1]
+			task.desynchronize()
+			local gs = self._grad._storage
+			for i = 1, #gs do
+				gs[i] += g
+			end
+			task.synchronize()
+		end
+	end)
+end
+
 local function detach(self: Tensor): Tensor
 	return newTensor(self._storage, self._shape, self._dtype, false, ensureSize(self))
 end
@@ -307,6 +362,23 @@ end
 local function noGrad(self: Tensor): ()
 	self._requiresGrad = false
 	self._grad = nil
+end
+
+local function backward(self: Tensor, grad: Tensor?)
+	if not self._requiresGrad then
+		error("Tensor does not require grad")
+	end
+	if not Tape then
+		Tape = require("./autograd/Tape") :: any
+	end
+	if not grad then
+		if self._size == 1 then
+			grad = Tensor.ones(self._shape, self._dtype, false)
+		else
+			error("backward: grad must be provided for non-scalar tensors")
+		end
+	end
+	Tape.backwardFrom(self, grad)
 end
 
 TensorMethods.reshape = reshape
@@ -321,10 +393,16 @@ Tensor.transpose = transpose
 TensorMethods.narrow = narrow
 Tensor.narrow = narrow
 
+TensorMethods.sum = sum
+Tensor.sum = sum
+
 TensorMethods.detach = detach
 Tensor.detach = detach
 
 TensorMethods.noGrad = noGrad
 Tensor.noGrad = noGrad
+
+TensorMethods.backward = backward
+Tensor.backward = backward
 
 return Tensor

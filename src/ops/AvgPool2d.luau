@@ -18,8 +18,8 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 						for kj = 1, KW do
 							local ii = (i - 1) * stride + ki
 							local jj = (j - 1) * stride + kj
-							local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b
-							sum += X._storage[xi]
+							local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b - 1
+							sum += X._storage[xi + 1]
 						end
 					end
 					local yi = (((c - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + b
@@ -34,6 +34,7 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 			X._grad = X._grad or Tensor.zeros(X._shape, X._dtype, false)
 			task.desynchronize()
 			local scale = 1 / (KH * KW)
+			local xGrad = X._grad :: Types.Tensor
 			for b = 1, B do
 				for c = 1, C do
 					for i = 1, Ho do
@@ -44,8 +45,8 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 								for kj = 1, KW do
 									local ii = (i - 1) * stride + ki
 									local jj = (j - 1) * stride + kj
-									local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b
-									X._grad._storage[xi + 1] += gyv * scale
+									local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b - 1
+									xGrad._storage[xi + 1] += gyv * scale
 								end
 							end
 						end

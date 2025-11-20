@@ -30,28 +30,34 @@ return function(C_in: number, C_out: number, KH: number, KW: number): Types.Modu
 			end
 		end
 		task.synchronize()
-		if not out._requiresGrad then
-			return out
-		end
-		return Tape.makeNode(out, { out, b }, function(gy: Types.Tensor)
-			if b._requiresGrad then
-				b._grad = b._grad or Tensor.zeros(b._shape, b._dtype, false)
-				task.desynchronize()
-				for f = 1, F do
-					local acc = 0
-					for i = 1, Ho do
-						for j = 1, Wo do
-							for bb = 1, B do
-								local yi = (((f - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + bb
-								acc += gy._storage[yi]
+		local old_backprop = out._backprop
+		local parents = out._parents and table.clone(out._parents) or {}
+		table.insert(parents, b)
+		if out._requiresGrad or b._requiresGrad then
+			return Tape.makeNode(out, parents, function(gy: Types.Tensor)
+				if b._requiresGrad then
+					b._grad = b._grad or Tensor.zeros(b._shape, b._dtype, false)
+					task.desynchronize()
+					for f = 1, F do
+						local acc = 0
+						for i = 1, Ho do
+							for j = 1, Wo do
+								for bb = 1, B do
+									local yi = (((f - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + bb
+									acc += gy._storage[yi]
+								end
 							end
 						end
+						b._grad._storage[f] += acc
 					end
-					b._grad._storage[f] += acc
+					task.synchronize()
 				end
-				task.synchronize()
-			end
-		end)
+				if old_backprop then
+					old_backprop(gy)
+				end
+			end)
+		end
+		return out
 	end
 	return self
 end

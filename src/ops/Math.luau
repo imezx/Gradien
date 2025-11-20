@@ -58,6 +58,19 @@ function Math.mul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 end
 
 --@param A Tensor
+--@return Tensor
+function Math.exp(A: Types.Tensor): Types.Tensor
+	task.desynchronize()
+	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
+	local as, cs = A._storage, C._storage
+	for i = 1, #as do
+		cs[i] = math.exp(as[i])
+	end
+	task.synchronize()
+	return C
+end
+
+--@param A Tensor
 --@param s number
 --@return Tensor
 function Math.scalarAdd(A: Types.Tensor, s: number): Types.Tensor
