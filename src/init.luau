@@ -25,6 +25,9 @@ Gradien.Experimental = {
 		Metaheuristic = require("@self/experimental/optim/Metaheuristic"),
 		SwarmPSO = require("@self/experimental/optim/SwarmPSO"),
 	},
+	RL = {
+		Feudal = require("@self/experimental/rl/Feudal"),
+	},
 }
 
 Gradien.Models = {
