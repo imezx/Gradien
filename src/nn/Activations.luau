@@ -214,10 +214,16 @@ function A.Mish(x: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local y = prep(x)
 	local xs, ys = x._storage, y._storage
+	local t = 20 -- threshold
 	for i = 1, #xs do
 		local v = xs[i]
-		local sp = math.log(1 + math.exp(v)) -- softplus
-		ys[i] = v * math.tanh(sp)
+		if v > t then
+			-- softplus(x)
+			ys[i] = v * math.tanh(v)
+		else
+			local sp = math.log(1 + math.exp(v))
+			ys[i] = v * math.tanh(sp)
+		end
 	end
 	task.synchronize()
 	return Tape.makeNode(y, { x }, function(gy)
@@ -229,10 +235,17 @@ function A.Mish(x: Types.Tensor): Types.Tensor
 		local gxs, gys = gx._storage, gy._storage
 		for i = 1, #xs do
 			local v = xs[i]
-			local sp = math.log(1 + math.exp(v))
-			local t = math.tanh(sp)
-			local s = 1 / (1 + math.exp(-v)) -- derivative of softplus is sigmoid
-			local d = t + v * (1 - t * t) * s
+			local d
+			if v > t then
+				local tanh_v = math.tanh(v)
+				d = tanh_v + v * (1 - tanh_v * tanh_v)
+			else
+				local exp_v = math.exp(v)
+				local sp = math.log(1 + exp_v)
+				local tanh_sp = math.tanh(sp)
+				local sigmoid = 1 / (1 + math.exp(-v))
+				d = tanh_sp + v * (1 - tanh_sp * tanh_sp) * sigmoid
+			end
 			gxs[i] += gys[i] * d
 		end
 		task.synchronize()
