@@ -1,7 +1,7 @@
 --[[
 Gradien (by @Eternity_Devs)
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
-Version 1.4.0-rc2
+Version 1.4.0-rc3
 ]]
 --!strict
 local Gradien = {}
@@ -44,6 +44,7 @@ Gradien.Ops = {
 	Pool = require("@self/ops/Pool"),
 	Softmax = require("@self/ops/Softmax"),
 	AvgPool2d = require("@self/ops/AvgPool2d"),
+	Scan = require("@self/ops/Scan"),
 }
 Gradien.NN = {
 	Linear = require("@self/nn/Linear"),
@@ -58,6 +59,7 @@ Gradien.NN = {
 	RNN = require("@self/nn/RNN"),
 	GRU = require("@self/nn/GRU"),
 	LSTM = require("@self/nn/LSTM"),
+	MambaBlock = require("@self/nn/Mamba"),
 	Sequential = require("@self/nn/Sequential"),
 	Dropout = require("@self/nn/Dropout"),
 	Fused = require("@self/nn/Fused"),
@@ -85,6 +87,8 @@ Gradien.Optim = {
 	Schedulers = require("@self/optim/Schedulers"),
 	Lion = require("@self/optim/Lion"),
 	Lookahead = require("@self/optim/Lookahead"),
+	Sophia = require("@self/optim/Sophia"),
+	Muon = require("@self/optim/Muon"),
 }
 Gradien.RL = {
 	Replay = require("@self/rl/Replay"),
