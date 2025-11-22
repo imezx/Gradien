@@ -34,7 +34,6 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 							end
 						end
 					end
-					Y._storage[(((c - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + b] = best
 					local yi = (((c - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + b
 					Y._storage[yi] = best
 					argmax[yi] = bestXi
