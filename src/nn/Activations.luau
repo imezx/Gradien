@@ -133,6 +133,30 @@ function A.LeakyReLU(x: Types.Tensor, alpha: number?): Types.Tensor
 	end)
 end
 
+function A.Softplus(x: Types.Tensor): Types.Tensor
+	task.desynchronize()
+	local y = prep(x)
+	local xs, ys = x._storage, y._storage
+	for i = 1, #xs do
+		ys[i] = math.log(1 + math.exp(xs[i]))
+	end
+	task.synchronize()
+	return Tape.makeNode(y, { x }, function(gy)
+		if not x._requiresGrad then
+			return
+		end
+		local gx = ensureGrad(x)
+		task.desynchronize()
+		local gxs, gys = gx._storage, gy._storage
+		for i = 1, #xs do
+			local v = xs[i]
+			local s = 1 / (1 + math.exp(-v)) -- sigmoid
+			gxs[i] += gys[i] * s
+		end
+		task.synchronize()
+	end)
+end
+
 function A.ELU(x: Types.Tensor, alpha: number?): Types.Tensor
 	local a = alpha or 1.0
 	task.desynchronize()
