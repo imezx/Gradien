@@ -62,6 +62,28 @@ local function ensureSize(t: Types.Tensor): number
 	return size
 end
 
+local function is_contiguous(self: Tensor): boolean
+	if not self._strides then
+		return true
+	end
+	local computed = computeStrides(self._shape)
+	for i = 1, #self._strides do
+		if self._strides[i] ~= computed[i] then
+			return false
+		end
+	end
+	return true
+end
+
+local function contiguous(self: Tensor): Tensor
+	if is_contiguous(self) then
+		return self
+	end
+	local size = ensureSize(self)
+	local out = newTensor(self._storage, self._shape, self._dtype, self._requiresGrad, size)
+	return out
+end
+
 local function ensureStrides(t: Types.Tensor): { number }
 	local strides = t._strides
 	if not strides then
@@ -130,12 +152,95 @@ local function reshape(self: Tensor, newShape: { number }): Tensor
 		if self._requiresGrad then
 			self._grad = self._grad or Tensor.zeros(self._shape, self._dtype, false)
 			task.desynchronize()
-			local gs, ys = self._grad._storage, gy._storage
+			local gs, ys = (self._grad :: Types.Tensor)._storage, gy._storage
 			for i = 1, #ys do
 				gs[i] += ys[i]
 			end
 			task.synchronize()
 		end
+	end)
+end
+
+local function expand(self: Tensor, newShape: { number }): Tensor
+	local rank = #self._shape
+	local newRank = #newShape
+	assert(newRank >= rank, "expand: new rank must be >= old rank")
+
+	local expansionStrides = table.create(newRank, 0)
+	local oldShapeExpanded = table.create(newRank, 1)
+	local oldStrides = ensureStrides(self)
+	local oldStridesExpanded = table.create(newRank, 0)
+
+	for i = 1, rank do
+		oldShapeExpanded[newRank - rank + i] = self._shape[i]
+		oldStridesExpanded[newRank - rank + i] = oldStrides[i]
+	end
+	for i = 1, newRank do
+		if oldShapeExpanded[i] == 1 and newShape[i] > 1 then
+			expansionStrides[i] = 0
+		elseif oldShapeExpanded[i] == newShape[i] then
+			expansionStrides[i] = oldStridesExpanded[i]
+		else
+			error("expand: incompatible shapes")
+		end
+	end
+
+	local outSize = sizeFromShape(newShape)
+	local outStrides = computeStrides(newShape)
+	local outStorage = table.create(outSize)
+
+	task.desynchronize()
+	local src = self._storage
+	local coord = table.create(newRank, 0)
+	for flatOut = 1, outSize do
+		local idx0 = flatOut - 1
+		for d = 1, newRank do
+			local stride = outStrides[d]
+			local v = math.floor(idx0 / stride)
+			coord[d] = v
+			idx0 %= stride
+		end
+		local srcOffset = 0
+		for d = 1, newRank do
+			srcOffset += coord[d] * expansionStrides[d]
+		end
+		outStorage[flatOut] = src[srcOffset + 1]
+	end
+	task.synchronize()
+
+	local out = newTensor(outStorage, newShape, self._dtype, self._requiresGrad, outSize)
+	if not self._requiresGrad then
+		return out
+	end
+	if not Tape then
+		Tape = require("./autograd/Tape") :: any
+	end
+	local dtype = self._dtype
+	local shapeCopy = table.clone(self._shape)
+	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
+		if not self._requiresGrad then
+			return
+		end
+		self._grad = self._grad or Tensor.zeros(shapeCopy, dtype, false)
+		task.desynchronize()
+		local gs = (self._grad :: Types.Tensor)._storage
+		local gys = gy._storage
+		local coordBack = table.create(newRank, 0)
+		for flatOut = 1, outSize do
+			local idx0 = flatOut - 1
+			for d = 1, newRank do
+				local stride = outStrides[d]
+				local v = math.floor(idx0 / stride)
+				coordBack[d] = v
+				idx0 %= stride
+			end
+			local srcOffset = 0
+			for d = 1, newRank do
+				srcOffset += coordBack[d] * expansionStrides[d]
+			end
+			gs[srcOffset + 1] += gys[flatOut]
+		end
+		task.synchronize()
 	end)
 end
 
@@ -209,7 +314,7 @@ local function slice(self: Tensor, dim: number, startIdx: number, endIdx: number
 		end
 		self._grad = self._grad or Tensor.zeros(shapeCopy, dtype, false)
 		task.desynchronize()
-		local gsrc = self._grad._storage
+		local gsrc = (self._grad :: Types.Tensor)._storage
 		local gys = gy._storage
 		if mapCopy then
 			for i = 1, #gys do
@@ -299,7 +404,7 @@ local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 		end
 		self._grad = self._grad or Tensor.zeros(shapeCopy, dtype, false)
 		task.desynchronize()
-		local gsrc = self._grad._storage
+		local gsrc = (self._grad :: Types.Tensor)._storage
 		local gys = gy._storage
 		if mapCopy then
 			for i = 1, #gys do
@@ -346,7 +451,7 @@ local function sum(self: Tensor, dim: number?): Tensor
 			self._grad = self._grad or Tensor.zeros(self._shape, self._dtype, false)
 			local g = gy._storage[1]
 			task.desynchronize()
-			local gs = self._grad._storage
+			local gs = (self._grad :: Types.Tensor)._storage
 			for i = 1, #gs do
 				gs[i] += g
 			end
@@ -383,6 +488,15 @@ end
 
 TensorMethods.reshape = reshape
 Tensor.reshape = reshape
+
+TensorMethods.expand = expand
+Tensor.expand = expand
+
+TensorMethods.is_contiguous = is_contiguous
+Tensor.is_contiguous = is_contiguous
+
+TensorMethods.contiguous = contiguous
+Tensor.contiguous = contiguous
 
 TensorMethods.slice = slice
 Tensor.slice = slice
