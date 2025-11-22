@@ -16,5 +16,4 @@ generate.py
 .vscode
 *.zip
 docs/.vitepress/*
-*.luau
-*.lua
+benchmark.luau
