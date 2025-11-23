@@ -1,12 +1,12 @@
 --!optimize 2
-local Tensor = require("../Tensor")
-local Tape = require("../autograd/Tape")
-local Types = require("../Types")
-local Scan = require("../ops/Scan")
-local Initializer = require("../Initializer")
-local BLAS = require("../ops/BLAS")
-local Math = require("../ops/Math")
-local Activations = require("./Activations")
+local Tensor = require("../../Tensor")
+local Tape = require("../../autograd/Tape")
+local Types = require("../../Types")
+local Scan = require("../../ops/Scan")
+local Initializer = require("../../Initializer")
+local BLAS = require("../../ops/BLAS")
+local Math = require("../../ops/Math")
+local Activations = require("../../nn/Activations")
 
 local function ensureGrad(t: Types.Tensor): Types.Tensor?
 	if not t._grad then
@@ -17,10 +17,10 @@ end
 
 local function depthwiseConv1d(x: Types.Tensor, weight: Types.Tensor): Types.Tensor
 	-- x: {B, L, D}
-	if not Tensor.isContiguous(x) then
+	if not Tensor.is_contiguous(x) then
 		x = Tensor.contiguous(x)
 	end
-	if not Tensor.isContiguous(weight) then
+	if not Tensor.is_contiguous(weight) then
 		weight = Tensor.contiguous(weight)
 	end
 	local B, L, D = x._shape[1], x._shape[2], x._shape[3]

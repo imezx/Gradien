@@ -5,7 +5,11 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
-export type Tensor = { _storage: { number }, _shape: { number }, _grad: { _storage: { number } }? }
+local Types = require("../Types")
+
+type Tensor = Types.Tensor
+type Module = Types.Module
+
 export type RenderOptions = {
 	layerSizeHints: { number }?,
 	maxNeuronsPerLayer: number?,
@@ -23,6 +27,7 @@ export type RenderOptions = {
 	valueDecimals: number?,
 	valueColor: Color3?,
 	valueSize: Vector2?,
+	sparsity: number?,
 }
 
 export type RenderHandle = {
@@ -31,6 +36,27 @@ export type RenderHandle = {
 	update: (self: RenderHandle) -> (),
 	destroy: (self: RenderHandle) -> (),
 	setAutoUpdate: (self: RenderHandle, on: boolean) -> (),
+	setSparsity: (self: RenderHandle, th: number) -> (),
+	setValuesVisible: (self: RenderHandle, on: boolean) -> (),
+}
+
+type BeamObj = {
+	beam: Beam,
+	iOut: number,
+	jIn: number,
+	_cWidth: number,
+	_cColor: Color3,
+	_cEnabled: boolean,
+}
+
+type NodeObj = {
+	part: BasePart,
+	label: TextLabel?,
+	idx: number,
+	_cColor: Color3,
+	_cTrans: number,
+	_cSize: Vector3,
+	_cText: string?,
 }
 
 local function fmtVal(a: number, digits: number): string
@@ -73,7 +99,7 @@ local function label(part: BasePart, text: string)
 	bb.Parent = part
 end
 
-local function labelVal(node: BasePart, valueDigits: string, valueColor: Color3, valueSize: Vector2)
+local function labelVal(node: BasePart, valueDigits: number, valueColor: Color3, valueSize: Vector2)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Val"
 	bb.AlwaysOnTop = true
@@ -93,36 +119,8 @@ local function labelVal(node: BasePart, valueDigits: string, valueColor: Color3,
 	return tl
 end
 
-local function attach(part: BasePart, localPos: Vector3): Attachment
-	local a = Instance.new("Attachment")
-	a.CFrame = CFrame.new(localPos)
-	a.Parent = part
-	return a
-end
-
-local function clamp(v: number, lo: number, hi: number): number
-	if v < lo then
-		return lo
-	elseif v > hi then
-		return hi
-	else
-		return v
-	end
-end
-
 local function ema(prev: number, x: number, alpha: number): number
 	return alpha * x + (1 - alpha) * prev
-end
-
-local function maxAbs(buf: { number }): number
-	local m = 0
-	for i = 1, #buf do
-		local a = math.abs(buf[i])
-		if a > m then
-			m = a
-		end
-	end
-	return (m > 1e-12) and m or 1e-12
 end
 
 local function pickEven(N: number, k: number): { number }
@@ -163,9 +161,9 @@ local function inferSizes(params: { Tensor }): { number }
 end
 
 local function sizesFromActs(getActsFn, model)
-	local ok, acts = pcall(getActsFn, model)
-	local L = #acts
-	if ok and type(acts) == "table" and L > 1 then
+	local acts = getActsFn(model)
+	local L = type(acts) == "table" and #acts or 0
+	if L > 1 then
 		local s = table.create(L)
 		for i = 1, L do
 			s[i] = #acts[i]
@@ -175,8 +173,8 @@ local function sizesFromActs(getActsFn, model)
 	return {}
 end
 
-function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): RenderHandle
-	opt = opt or {}
+function Visual3D.render(model: any, origin: CFrame, opts: RenderOptions?): RenderHandle
+	local opt = opts or {}
 	local maxNeurons = opt.maxNeuronsPerLayer or 48
 	local maxBeamsPerEdge = opt.maxBeamsPerEdge or 256
 	local spacing = opt.layerSpacing or 10
@@ -201,9 +199,11 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 
 	local params = model:parameters() :: { Tensor }
 	local sizes = opt.layerSizeHints or (getActs and sizesFromActs(getActs, model)) or inferSizes(params)
-	if #sizes < 2 then
+
+	local L = #sizes
+	if L < 2 then
 		local p = newPart(folder, origin, Vector3.new(5, 1, 2), Color3.fromRGB(255, 90, 90), "Error")
-		label(p, "Visual3D: no layers found")
+		label(p, "Visual3D: < 2 layers detected")
 		return {
 			folder = folder,
 			setMode = function() end,
@@ -212,16 +212,14 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 				self.folder:Destroy()
 			end,
 			setAutoUpdate = function() end,
+			setSparsity = function() end,
+			setValuesVisible = function() end,
 		}
 	end
-	local L = #sizes
-
 	local layerParts: { BasePart } = table.create(L)
-	local neuronFolders: { Folder } = table.create(L)
+	local nodeCache: { { NodeObj } } = table.create(L)
 	local neuronPicks: { { number } } = table.create(L)
 	local nodePinsByLayer: { [number]: { [number]: Attachment } } = {}
-	local nodeValueLabelByLayer: { [number]: { [number]: TextLabel } } = {}
-
 	for li = 1, L do
 		local n = sizes[li]
 		local height = math.max(1, n * unitH)
@@ -231,29 +229,27 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 			origin * CFrame.new((li - 1) * spacing, height / 2, 0),
 			Vector3.new(3, height, boxDepth),
 			color,
-			("Layer_%d"):format(li)
+			`Layer_{li}`
 		)
-		local tag = (li == 1 and ("Input " .. n)) or (li == L and ("Output " .. n)) or ("Hidden " .. n)
+		local tag = (li == 1 and `Input {n}`) or (li == L and `Output {n}`) or `Hidden {n}`
 		label(p, tag)
 		layerParts[li] = p
 
-		-- nodes
 		local nf = Instance.new("Folder")
-		nf.Name = "Nodes_" .. li
+		nf.Name = `Nodes_{li}`
 		nf.Parent = folder
-		neuronFolders[li] = nf
 		local picks = pickEven(n, math.min(maxNeurons, n))
 		neuronPicks[li] = picks
-
-		local pins = nodePinsByLayer[li] or {}
+		local layerNodes = table.create(#picks)
+		nodeCache[li] = layerNodes
+		local pins = {}
 		nodePinsByLayer[li] = pins
-		nodeValueLabelByLayer[li] = nodeValueLabelByLayer[li] or {}
 
 		for k = 1, #picks do
 			local j = picks[k]
 			local y = -p.Size.Y / 2 + (j - 0.5) * (p.Size.Y / n)
 			local node = Instance.new("Part")
-			node.Name = ("n_%d"):format(j)
+			node.Name = `n_{j}`
 			node.Shape = Enum.PartType.Ball
 			node.Anchored = true
 			node.CanCollide = false
@@ -263,50 +259,50 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 			node.Size = Vector3.new(0.35, 0.35, 0.35)
 			node.CFrame = p.CFrame * CFrame.new(0, y, 0.6 + 0.5)
 			node.Parent = nf
-
+			local lbl: TextLabel? = nil
 			if showVals and ((k - 1) % valueEvery == 0) then
-				nodeValueLabelByLayer[li][j] = labelVal(node, valueDigits, valueColor, valueSize)
+				lbl = labelVal(node, valueDigits, valueColor, valueSize)
 			end
-
 			local pin = Instance.new("Attachment")
-			pin.Name = ("pin_%d"):format(j)
+			pin.Name = `pin_{j}`
 			pin.Parent = node
 			pins[j] = pin
+			layerNodes[k] = {
+				part = node,
+				label = lbl,
+				idx = j,
+				_cColor = Color3.new(1, 1, 1),
+				_cTrans = 0,
+				_cSize = Vector3.new(1, 1, 1),
+				_cText = nil,
+			}
 		end
 	end
 	local Ws = collectWeightMats(params)
-	local beamSpecs = {} :: { { W: Tensor, pairs: { { iOut: number, jIn: number, beam: Beam } }, emaMax: number } }
-
+	local beamSpecs = {} :: { { W: Tensor, objects: { BeamObj }, emaMax: number } }
 	local linkCount = math.min(#Ws, L - 1)
 	for li = 1, linkCount do
 		local W = Ws[li]
 		local fullInPick = neuronPicks[li] or {}
 		local fullOutPick = neuronPicks[li + 1] or {}
-
 		local targetSide = math.floor(math.sqrt(maxBeamsPerEdge))
 		local strideIn = math.max(1, math.floor(#fullInPick / math.max(1, targetSide)))
 		local strideOut = math.max(1, math.floor(#fullOutPick / math.max(1, targetSide)))
-
-		local selIn, selOut = {}, {}
-		for k = 1, #fullInPick, strideIn do
-			table.insert(selIn, fullInPick[k])
-		end
-		for k = 1, #fullOutPick, strideOut do
-			table.insert(selOut, fullOutPick[k])
-		end
-
 		local bf = Instance.new("Folder")
-		bf.Name = ("Beams_%d"):format(li)
+		bf.Name = `Beams_{li}`
 		bf.Parent = folder
-		local _pairs = {}
+		local objects: { BeamObj } = {}
 		local total = 0
-
-		for oi = 1, #selOut do
-			for ij = 1, #selIn do
+		for oi = 1, #fullOutPick, strideOut do
+			if total >= maxBeamsPerEdge then
+				break
+			end
+			for ij = 1, #fullInPick, strideIn do
 				if total >= maxBeamsPerEdge then
 					break
 				end
-				local iOut, jIn = selOut[oi], selIn[ij]
+				local iOut = fullOutPick[oi]
+				local jIn = fullInPick[ij]
 				local pinIn = nodePinsByLayer[li] and nodePinsByLayer[li][jIn]
 				local pinOut = nodePinsByLayer[li + 1] and nodePinsByLayer[li + 1][iOut]
 				if pinIn and pinOut then
@@ -319,48 +315,61 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 					b.Width1 = 0.01
 					b.Color = ColorSequence.new(Color3.fromRGB(180, 180, 180))
 					b.Parent = bf
-					table.insert(_pairs, { iOut = iOut, jIn = jIn, beam = b })
+					table.insert(objects, {
+						beam = b,
+						iOut = iOut,
+						jIn = jIn,
+						_cWidth = 0.01,
+						_cColor = Color3.new(1, 1, 1),
+						_cEnabled = true,
+					})
 					total += 1
-				end
-				if total >= maxBeamsPerEdge then
-					break
 				end
 			end
 		end
-
-		table.insert(beamSpecs, { W = W, pairs = _pairs, emaMax = 1.0 })
+		table.insert(beamSpecs, { W = W, objects = objects, emaMax = 1.0 })
 	end
-
 	local function getValueField(t: Tensor, idx: number, useGrad: boolean): number
 		if useGrad and t._grad and t._grad._storage then
 			return math.abs(t._grad._storage[idx] or 0)
 		end
 		return t._storage[idx] or 0
 	end
-
 	local autoConn: RBXScriptConnection? = nil
 	local currentMode = mode
-
 	local handle: RenderHandle
 	handle = {
 		folder = folder,
-
 		setMode = function(self, m: string)
 			if m == "grads" or m == "weights" then
 				currentMode = m
 			end
 		end,
-
+		setSparsity = function(_, th: number)
+			sparsity = math.clamp(th, 0, 0.5)
+		end,
+		setValuesVisible = function(_, on: boolean)
+			if not getActs then
+				return
+			end
+			showVals = on
+			for _, layerList in nodeCache do
+				for _, obj in layerList do
+					if obj.label and obj.label.Parent and obj.label.Parent:IsA("BillboardGui") then
+						obj.label.Parent.Enabled = on
+					end
+				end
+			end
+		end,
 		update = function(self)
+			task.desynchronize()
+			local useGrad = (currentMode == "grads")
 			for _, spec in ipairs(beamSpecs) do
-				task.desynchronize()
 				local W = spec.W
 				local inDim = W._shape[2]
-				local useGrad = (currentMode == "grads")
-
 				local curMax = 1e-12
-				for _, pr in ipairs(spec.pairs) do
-					local idx = (pr.iOut - 1) * inDim + pr.jIn
+				for _, obj in ipairs(spec.objects) do
+					local idx = (obj.iOut - 1) * inDim + obj.jIn
 					local v = getValueField(W, idx, useGrad)
 					local a = math.abs(v)
 					if a > curMax then
@@ -369,61 +378,82 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 				end
 				spec.emaMax = ema(spec.emaMax, curMax, 0.2)
 				local denom = spec.emaMax + 1e-12
-
-				for _, pr in ipairs(spec.pairs) do
-					local idx = (pr.iOut - 1) * inDim + pr.jIn
+				for _, obj in ipairs(spec.objects) do
+					local idx = (obj.iOut - 1) * inDim + obj.jIn
 					local val = getValueField(W, idx, useGrad)
-					local mag = clamp(math.abs(val) / denom, 0, 1)
-					local w = 0.01 + 0.015 * mag
+					local mag = math.clamp(math.abs(val) / denom, 0, 1)
 					local keep = (mag >= sparsity)
-					task.synchronize()
-					pr.beam.Enabled = keep
-					if not keep then
-						continue
+					obj._cEnabled = keep
+					if keep then
+						local w = 0.01 + 0.015 * mag
+						obj._cWidth = w
+						if useGrad then
+							obj._cColor = Color3.fromRGB(255, 220, 90)
+						else
+							if val >= 0 then
+								obj._cColor = Color3.fromRGB(90, 180, 255)
+							else
+								obj._cColor = Color3.fromRGB(255, 120, 120)
+							end
+						end
 					end
-					local c = (useGrad and Color3.fromRGB(255, 220, 90))
-						or ((val >= 0) and Color3.fromRGB(90, 180, 255) or Color3.fromRGB(255, 120, 120))
-					pr.beam.Width0 = w
-					pr.beam.Width1 = w
-					pr.beam.Color = ColorSequence.new(c)
 				end
 			end
-
+			local actResults = nil
 			if getActs then
-				task.desynchronize()
 				local acts = getActs(model)
 				if type(acts) == "table" then
-					for li = 1, #sizes do
+					actResults = acts
+					for li = 1, #nodeCache do
 						local layerActs = acts[li]
-						if layerActs then
-							local nf = neuronFolders[li]
-							local picks = neuronPicks[li]
-							for k = 1, #picks do
-								local j = picks[k]
-								local node = nf:FindFirstChild(("n_%d"):format(j)) :: BasePart
-								if node then
-									local a = layerActs[j] or 0
-									local s = clamp(math.abs(a), 0, 1)
-									task.synchronize()
-									node.Color = (a >= 0) and Color3.fromRGB(150, 220, 255)
-										or Color3.fromRGB(255, 160, 160)
-									node.Transparency = 1 - (0.15 + 0.75 * s)
-									node.Size = Vector3.new(0.30 + 0.25 * s, 0.30 + 0.25 * s, 0.30 + 0.25 * s)
-									if showVals then
-										local tbl = nodeValueLabelByLayer[li]
-										local lbl = tbl and tbl[j]
-										if lbl then
-											lbl.Text = fmtVal(a, valueDigits)
-										end
-									end
+						local layerNodes = nodeCache[li]
+						if layerActs and layerNodes then
+							for _, nodeObj in ipairs(layerNodes) do
+								local j = nodeObj.idx
+								local a = layerActs[j] or 0
+								local s = math.clamp(math.abs(a), 0, 1)
+								if a >= 0 then
+									nodeObj._cColor = Color3.fromRGB(150, 220, 255)
+								else
+									nodeObj._cColor = Color3.fromRGB(255, 160, 160)
+								end
+								nodeObj._cTrans = 1 - (0.15 + 0.75 * s)
+								local sz = 0.30 + 0.25 * s
+								nodeObj._cSize = Vector3.new(sz, sz, sz)
+								if showVals and nodeObj.label then
+									nodeObj._cText = fmtVal(a, valueDigits)
 								end
 							end
 						end
 					end
 				end
 			end
+			task.synchronize()
+			for _, spec in ipairs(beamSpecs) do
+				for _, obj in ipairs(spec.objects) do
+					obj.beam.Enabled = obj._cEnabled
+					if obj._cEnabled then
+						local w = obj._cWidth
+						obj.beam.Width0 = w
+						obj.beam.Width1 = w
+						obj.beam.Color = ColorSequence.new(obj._cColor)
+					end
+				end
+			end
+			if getActs and actResults then
+				for li = 1, #nodeCache do
+					local layerNodes = nodeCache[li]
+					for _, nodeObj in ipairs(layerNodes) do
+						nodeObj.part.Color = nodeObj._cColor
+						nodeObj.part.Transparency = nodeObj._cTrans
+						nodeObj.part.Size = nodeObj._cSize
+						if nodeObj._cText and nodeObj.label then
+							nodeObj.label.Text = nodeObj._cText
+						end
+					end
+				end
+			end
 		end,
-
 		setAutoUpdate = function(self, on: boolean)
 			if autoConn then
 				autoConn:Disconnect()
@@ -440,25 +470,6 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 				end)
 			end
 		end,
-
-		setSparsity = function(_, th: number)
-			sparsity = math.clamp(th, 0, 0.5)
-		end,
-		setValuesVisible = function(_, on: boolean)
-			if not getActs then
-				return
-			end
-			showVals = on
-			for _, layerMap in nodeValueLabelByLayer do
-				for _, tl in layerMap do
-					local bb = tl and tl.Parent
-					if bb and bb:IsA("BillboardGui") then
-						bb.Enabled = on
-					end
-				end
-			end
-		end,
-
 		destroy = function(self)
 			if autoConn then
 				autoConn:Disconnect()
@@ -467,7 +478,6 @@ function Visual3D.render(model: any, origin: CFrame, opt: RenderOptions?): Rende
 			self.folder:Destroy()
 		end,
 	}
-
 	handle:update()
 	task.synchronize()
 	handle:setAutoUpdate(true)

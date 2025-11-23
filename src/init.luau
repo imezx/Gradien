@@ -21,6 +21,9 @@ Gradien.Experimental = {
 	Models = {
 		QIMHNN = require("@self/experimental/models/QIMHNN"),
 	},
+	NN = {
+		MambaBlock = require("@self/experimental/nn/Mamba"),
+	},
 	Optim = {
 		Metaheuristic = require("@self/experimental/optim/Metaheuristic"),
 		SwarmPSO = require("@self/experimental/optim/SwarmPSO"),
@@ -62,7 +65,6 @@ Gradien.NN = {
 	RNN = require("@self/nn/RNN"),
 	GRU = require("@self/nn/GRU"),
 	LSTM = require("@self/nn/LSTM"),
-	MambaBlock = require("@self/nn/Mamba"),
 	Sequential = require("@self/nn/Sequential"),
 	Dropout = require("@self/nn/Dropout"),
 	Fused = require("@self/nn/Fused"),
