@@ -27,10 +27,10 @@ local pi = math.pi
 local random = math.random
 
 local function computeStrides(shape: { number }): { number }
+	task.desynchronize()
 	local rank = #shape
 	local strides = table.create(rank)
 	local acc: number = 1
-	task.desynchronize()
 	for i = rank, 1, -1 do
 		strides[i] = acc
 		acc *= shape[i]

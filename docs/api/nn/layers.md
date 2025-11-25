@@ -34,3 +34,42 @@ local model = Gradien.NN.Sequential({
 })
 ```
 :::
+
+## `NN.Conv2d`
+
+Applies a 2D convolution over an input signal composed of several input planes.
+
+::: code-group
+```lua [Definition]
+(C_in: number, C_out: number, KH: number, KW: number) -> Module
+```
+```lua [Example]
+local conv = Gradien.NN.Conv2d(3, 64, 3, 3) -- 3 input channels, 64 output, 3x3 kernel
+```
+:::
+
+## `NN.MaxPool2d`
+
+Applies a 2D max pooling over an input signal.
+
+::: code-group
+```lua [Definition]
+(KH: number, KW: number, stride: number) -> Module
+```
+```lua [Example]
+local pool = Gradien.NN.MaxPool2d(2, 2, 2) -- 2x2 kernel, stride 2
+```
+:::
+
+## `NN.AvgPool2d`
+
+Applies a 2D average pooling over an input signal.
+
+::: code-group
+```lua [Definition]
+(KH: number, KW: number, stride: number) -> Module
+```
+```lua [Example]
+local pool = Gradien.NN.AvgPool2d(2, 2, 2) -- 2x2 kernel, stride 2
+```
+:::
