@@ -63,20 +63,26 @@ local function im2col(
 	local cols = Tensor.zeros({ patch, Ho * Wo * B }, X._dtype, false)
 	local xs = X._storage
 	local cs = cols._storage
+	local HWd_B = H * Wd * B
+	local Wd_B = Wd * B
 	task.desynchronize()
 	local col = 0
 	for i = 1, Ho do
 		for j = 1, Wo do
 			for b = 1, B do
+				local base = col * patch
 				col += 1
-				local base = (col - 1) * patch
 				local offset = 0
+				local b_minus_1 = b - 1
 				for c = 1, C do
-					for ki = 1, KH do
-						for kj = 1, KW do
+					local c_offset = (c - 1) * HWd_B
+					for ki = 0, KH - 1 do
+						local row_part = (i + ki - 1) * Wd_B -- (i - 1 + ki) * Wd * B
+						for kj = 0, KW - 1 do
+							local col_part = (j + kj - 1) * B -- (j - 1 + kj) * B
+							local xi = c_offset + row_part + col_part + b_minus_1
+							cs[base + offset + 1] = xs[xi + 1]
 							offset += 1
-							local xi = (((c - 1) * H + (i + ki - 2)) * Wd + (j + kj - 2)) * B + b - 1
-							cs[base + offset] = xs[xi + 1]
 						end
 					end
 				end
@@ -103,20 +109,26 @@ local function col2im(
 	local out = Tensor.zeros({ C, H, Wd, B }, dtype, false)
 	local xs = out._storage
 	local cs = cols._storage
+	local HWd_B = H * Wd * B
+	local Wd_B = Wd * B
 	task.desynchronize()
 	local col = 0
 	for i = 1, Ho do
 		for j = 1, Wo do
 			for b = 1, B do
+				local base = col * patch
 				col += 1
-				local base = (col - 1) * patch
 				local offset = 0
+				local b_minus_1 = b - 1
 				for c = 1, C do
-					for ki = 1, KH do
-						for kj = 1, KW do
+					local c_offset = (c - 1) * HWd_B
+					for ki = 0, KH - 1 do
+						local row_part = (i + ki - 1) * Wd_B
+						for kj = 0, KW - 1 do
+							local col_part = (j + kj - 1) * B
+							local xi = c_offset + row_part + col_part + b_minus_1
+							xs[xi + 1] += cs[base + offset + 1]
 							offset += 1
-							local xi = (((c - 1) * H + (i + ki - 2)) * Wd + (j + kj - 2)) * B + b - 1
-							xs[xi + 1] += cs[base + offset]
 						end
 					end
 				end
@@ -146,18 +158,16 @@ return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 	local Ho = H - KH + 1
 	local Wo = Wd - KW + 1
 	assert(Ho > 0 and Wo > 0, "conv2d: kernel larger than input")
-
+	task.desynchronize()
 	local patch = C * KH * KW
 	local columns = Ho * Wo * B
-
 	local cols = im2col(X, C, H, Wd, B, KH, KW, Ho, Wo)
 	local weightView = makeMatrixView(W, F, patch)
 	local yMat = BLAS.matmul(weightView, cols)
 	local Y = reshapeInPlace(yMat, { F, Ho, Wo, B })
-
+	task.synchronize()
 	return Tape.makeNode(Y, { X, W }, function(gy: Types.Tensor)
 		local gyMat = makeMatrixView(gy, F, columns)
-
 		if W._requiresGrad then
 			if not W._grad then
 				W._grad = Tensor.zeros({ F, C, KH, KW }, W._dtype, false)
@@ -168,7 +178,6 @@ return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 			local gradView = makeMatrixView(gradW, F, patch)
 			addInto(gradView, dW)
 		end
-
 		if X._requiresGrad then
 			if not X._grad then
 				X._grad = Tensor.zeros({ C, H, Wd, B }, X._dtype, false)

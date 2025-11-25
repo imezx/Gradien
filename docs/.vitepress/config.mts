@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: "Gradien",
-  description: "Parallelized Machine Learning for Roblox",
+  description: "Parallelized Machine Learning for Roblox.",
   base: '/Gradien/',
   lang: 'en-US',
   cleanUrls: true,
@@ -82,7 +82,7 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/EternityDevs/Gradien' },
+      { icon: 'github', link: 'https://github.com/imezx/Gradien' },
       { icon: 'discord', link: 'https://discord.gg/qnSfEZ6bZK' },
     ]
   }
