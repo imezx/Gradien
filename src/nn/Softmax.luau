@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local SoftmaxOps = require("../ops/Softmax")
 local Types = require("../Types")

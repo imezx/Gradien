@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 -- Chen et al., 2023. Update uses sign of momentum (no per-param v).
 

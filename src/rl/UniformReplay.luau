@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Tensor = require("../Tensor")
 local Buffer = require("../Util/Buffer")
@@ -89,17 +90,17 @@ local function sample(self, B: number)
 	return packBatch(self, idxs)
 end
 
----@class UniformReplay
----@field capacity integer
----@field size_ integer
----@field head integer
----@field S {any}
----@field A {number}
----@field R {number}
----@field NS {any}
----@field D {boolean}
----@field stateDim number?
----@field stateDType string?
+--@class UniformReplay
+--@field capacity integer
+--@field size_ integer
+--@field head integer
+--@field S {any}
+--@field A {number}
+--@field R {number}
+--@field NS {any}
+--@field D {boolean}
+--@field stateDim number?
+--@field stateDType string?
 local function new(capacity: number)
 	assert(capacity >= 1, "UniformReplay: capacity must be >= 1")
 	return {

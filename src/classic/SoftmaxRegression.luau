@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Linear = require("../nn/Linear")
 local Losses = require("../nn/Losses")

@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
@@ -135,9 +136,9 @@ local function addInto(dst: Types.Tensor, src: Types.Tensor)
 	task.synchronize()
 end
 
----@param X Tensor
----@param W Tensor -- {F,C,KH,KW}
----@return Tensor -- {F,Ho,Wo,B}
+--@param X Tensor
+--@param W Tensor -- {F,C,KH,KW}
+--@return Tensor -- {F,Ho,Wo,B}
 return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 	local C, H, Wd, B = X._shape[1], X._shape[2], X._shape[3], X._shape[4]
 	local F, Cw, KH, KW = W._shape[1], W._shape[2], W._shape[3], W._shape[4]

@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Tensor = require("../Tensor")
 local Types = require("../Types")

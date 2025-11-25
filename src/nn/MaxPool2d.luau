@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local MP = require("../ops/Pool")
 local Types = require("../Types")

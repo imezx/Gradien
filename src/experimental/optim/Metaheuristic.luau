@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 -- Metaheuristic Optimizer for QIMHNN
 local Types = require("../../Types")

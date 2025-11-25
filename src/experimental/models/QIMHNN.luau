@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 -- Quantum-Inspired Metaheuristic Neural Network (QIMHNN)
 local Types = require("../../Types")

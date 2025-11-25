@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Parallel = {}
 function Parallel.with(fn: () -> ...any): ...any

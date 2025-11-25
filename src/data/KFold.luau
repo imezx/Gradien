@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Types = require("../Types")
 return function(N: number, K: number): Types.BatchIter

@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Tape = require("../autograd/Tape")
 local Tensor = require("../Tensor")

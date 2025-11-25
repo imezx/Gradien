@@ -1,5 +1,5 @@
+--!native
 --!optimize 2
-
 local function update(self, x: number)
 	self.n += 1
 	local d = x - self.mean

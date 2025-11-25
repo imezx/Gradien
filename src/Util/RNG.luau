@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local RNG = {}
 local _rng = Random.new()

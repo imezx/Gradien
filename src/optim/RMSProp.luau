@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 export type Optimizer = { step: (self: Optimizer) -> (), zeroGrad: (self: Optimizer) -> () }
 

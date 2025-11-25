@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Util = require("../Util")
 local assert = Util.Assert

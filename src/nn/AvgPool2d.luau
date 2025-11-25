@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Avg = require("../ops/AvgPool2d")
 local Types = require("../Types")

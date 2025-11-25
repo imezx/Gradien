@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 -- multi-particle PSO Optimizer for QIMHNN
 local Types = require("../../Types")

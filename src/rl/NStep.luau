@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local NStep = {}
 function NStep.returns(rewards: { number }, dones: { boolean }, gamma: number, n: number): { number }

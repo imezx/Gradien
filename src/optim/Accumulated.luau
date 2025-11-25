@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Util = require("../Util")
 local Types = require("../Types")

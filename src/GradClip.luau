@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local GC = {}
 function GC.clipValue(params, clip)

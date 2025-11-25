@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 
 --@param N number -- total items

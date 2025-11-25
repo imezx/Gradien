@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Types = require("../Types")
 return function(mods: { Types.Module<Types.Tensor, Types.Tensor> }): Types.Module<Types.Tensor, Types.Tensor>

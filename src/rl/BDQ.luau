@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local G = script.Parent.Parent
 local Tensor = require("../Tensor")

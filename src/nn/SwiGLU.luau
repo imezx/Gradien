@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Activations = require("./Activations")
 local Types = require("../Types")

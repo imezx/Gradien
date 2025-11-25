@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Linear = require("./Linear")
 local Tensor = require("../Tensor")

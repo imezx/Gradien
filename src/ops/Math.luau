@@ -1,7 +1,10 @@
+--!native
 --!optimize 2
 local Tensor = require("../Tensor")
 local Types = require("../Types")
 local Math = {}
+
+local exp = math.exp
 
 local function checkShapes(A: Types.Tensor, B: Types.Tensor, op: string)
 	if #A._storage ~= #B._storage then
@@ -64,7 +67,7 @@ function Math.exp(A: Types.Tensor): Types.Tensor
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
 	local as, cs = A._storage, C._storage
 	for i = 1, #as do
-		cs[i] = math.exp(as[i])
+		cs[i] = exp(as[i])
 	end
 	task.synchronize()
 	return C

@@ -1,4 +1,5 @@
 --!native
+--!native
 --!optimize 2
 --@Eternity_Devs
 --from Warp lib

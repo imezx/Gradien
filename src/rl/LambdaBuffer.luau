@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 
 local function push(self, t)

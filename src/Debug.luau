@@ -29,9 +29,9 @@ end
 function Debug.wrapOptimizer(
 	opt,
 	params: { Tensor },
-	cfg: { maxGradNorm: number?, clipValue: number?, warnOnNaN: boolean?, label: string? }?
+	cfgs: { maxGradNorm: number?, clipValue: number?, warnOnNaN: boolean?, label: string? }?
 )
-	cfg = cfg or {}
+	local cfg = cfgs or {}
 	local maxGradNorm = cfg.maxGradNorm
 	local clipValue = cfg.clipValue
 	local warnOnNaN = cfg.warnOnNaN

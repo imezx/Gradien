@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local function bytesPer(dtype: string?): number
 	if dtype == "f64" then return 8 end

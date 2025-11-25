@@ -1,3 +1,4 @@
+--!native
 --!optimize 2
 local Tensor = {}
 
@@ -16,6 +17,15 @@ export type Tensor = Types.Tensor
 
 local sizeFromShape = Util.sizeFromShape
 local assert = Util.Assert
+
+local sqrt = math.sqrt
+local log = math.log
+local cos = math.cos
+local sin = math.sin
+local floor = math.floor
+local pi = math.pi
+local random = math.random
+
 local function computeStrides(shape: { number }): { number }
 	local rank = #shape
 	local strides = table.create(rank)
@@ -124,10 +134,12 @@ function Tensor.randn(shape: { number }, dtype: Types.DType?, requiresGrad: bool
 	local storage = table.create(n)
 	task.desynchronize()
 	for i = 1, n, 2 do
-		local u1 = math.random()
-		local u2 = math.random()
-		local z0 = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
-		local z1 = math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.pi * u2)
+		local u1 = random()
+		local u2 = random()
+		local radius = sqrt(-2 * log(u1))
+		local theta = 2 * pi * u2
+		local z0 = radius * cos(theta)
+		local z1 = radius * sin(theta)
 		storage[i] = z0
 		if i + 1 <= n then
 			storage[i + 1] = z1
@@ -141,7 +153,6 @@ local function reshape(self: Tensor, newShape: { number }): Tensor
 	local size = ensureSize(self)
 	assert(sizeFromShape(newShape) == size, "reshape: element count mismatch")
 	local out = newTensor(self._storage, newShape, self._dtype, self._requiresGrad, size)
-
 	if not self._requiresGrad then
 		return out
 	end
@@ -165,12 +176,10 @@ local function expand(self: Tensor, newShape: { number }): Tensor
 	local rank = #self._shape
 	local newRank = #newShape
 	assert(newRank >= rank, "expand: new rank must be >= old rank")
-
 	local expansionStrides = table.create(newRank, 0)
 	local oldShapeExpanded = table.create(newRank, 1)
 	local oldStrides = ensureStrides(self)
 	local oldStridesExpanded = table.create(newRank, 0)
-
 	for i = 1, rank do
 		oldShapeExpanded[newRank - rank + i] = self._shape[i]
 		oldStridesExpanded[newRank - rank + i] = oldStrides[i]
@@ -184,30 +193,28 @@ local function expand(self: Tensor, newShape: { number }): Tensor
 			error("expand: incompatible shapes")
 		end
 	end
-
 	local outSize = sizeFromShape(newShape)
-	local outStrides = computeStrides(newShape)
 	local outStorage = table.create(outSize)
-
 	task.desynchronize()
 	local src = self._storage
 	local coord = table.create(newRank, 0)
 	for flatOut = 1, outSize do
-		local idx0 = flatOut - 1
-		for d = 1, newRank do
-			local stride = outStrides[d]
-			local v = math.floor(idx0 / stride)
-			coord[d] = v
-			idx0 %= stride
-		end
 		local srcOffset = 0
 		for d = 1, newRank do
 			srcOffset += coord[d] * expansionStrides[d]
 		end
 		outStorage[flatOut] = src[srcOffset + 1]
+
+		for d = newRank, 1, -1 do
+			local val = coord[d] + 1
+			if val < newShape[d] then
+				coord[d] = val
+				break
+			end
+			coord[d] = 0
+		end
 	end
 	task.synchronize()
-
 	local out = newTensor(outStorage, newShape, self._dtype, self._requiresGrad, outSize)
 	if not self._requiresGrad then
 		return out
@@ -227,18 +234,20 @@ local function expand(self: Tensor, newShape: { number }): Tensor
 		local gys = gy._storage
 		local coordBack = table.create(newRank, 0)
 		for flatOut = 1, outSize do
-			local idx0 = flatOut - 1
-			for d = 1, newRank do
-				local stride = outStrides[d]
-				local v = math.floor(idx0 / stride)
-				coordBack[d] = v
-				idx0 %= stride
-			end
 			local srcOffset = 0
 			for d = 1, newRank do
 				srcOffset += coordBack[d] * expansionStrides[d]
 			end
 			gs[srcOffset + 1] += gys[flatOut]
+
+			for d = newRank, 1, -1 do
+				local val = coordBack[d] + 1
+				if val < newShape[d] then
+					coordBack[d] = val
+					break
+				end
+				coordBack[d] = 0
+			end
 		end
 		task.synchronize()
 	end)
@@ -259,28 +268,20 @@ local function slice(self: Tensor, dim: number, startIdx: number, endIdx: number
 	assert(e >= 1 and e <= sizeDim, "slice: endIdx out of bounds")
 	assert(e >= s, "slice: endIdx must be >= startIdx")
 
-	local length = math.floor((e - s) / st) + 1
+	local length = floor((e - s) / st) + 1
 	local outShape = table.clone(shape)
 	outShape[dim] = length
 
 	local outSize = sizeFromShape(outShape)
 	local inStrides = ensureStrides(self)
-	local outStrides = computeStrides(outShape)
-
 	local outStorage = table.create(outSize)
 	local indexMap = self._requiresGrad and table.create(outSize) or nil
 
 	task.desynchronize()
 	local coord = table.create(rank, 1)
 	local srcStorage = self._storage
+
 	for flatOut = 1, outSize do
-		local idx0 = flatOut - 1
-		for d = 1, rank do
-			local stride = outStrides[d]
-			local v = math.floor(idx0 / stride)
-			coord[d] = v + 1
-			idx0 = idx0 % stride
-		end
 		local posDim = s + (coord[dim] - 1) * st
 		local flatIn0 = 0
 		for d = 1, rank do
@@ -294,6 +295,15 @@ local function slice(self: Tensor, dim: number, startIdx: number, endIdx: number
 		outStorage[flatOut] = srcStorage[storageIndex]
 		if indexMap then
 			indexMap[flatOut] = storageIndex
+		end
+
+		for d = rank, 1, -1 do
+			local val = coord[d] + 1
+			if val <= outShape[d] then
+				coord[d] = val
+				break
+			end
+			coord[d] = 1
 		end
 	end
 	task.synchronize()
@@ -331,7 +341,6 @@ end
 local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 	local shape = self._shape
 	local rank = #shape
-
 	local d1 = dim1
 	local d2 = dim2
 	if d1 == nil and d2 == nil then
@@ -340,39 +349,26 @@ local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 	else
 		assert(d1 ~= nil and d2 ~= nil, "transpose: both dim1 and dim2 must be provided")
 	end
-
 	assert(d1 >= 1 and d1 <= rank, "transpose: dim1 out of range")
 	assert(d2 >= 1 and d2 <= rank, "transpose: dim2 out of range")
 	assert(d1 ~= d2, "transpose: dim1 and dim2 must be different")
-
 	local perm = table.create(rank)
 	for i = 1, rank do
 		perm[i] = i
 	end
 	perm[d1], perm[d2] = perm[d2], perm[d1]
-
 	local outShape = table.create(rank)
 	for i = 1, rank do
 		outShape[i] = shape[perm[i]]
 	end
-
 	local size = ensureSize(self)
 	local outSize = size
-	local inStrides = ensureStrides(self)
 	local outStrides = computeStrides(outShape)
-
 	local dst = table.create(outSize)
 	local indexMap = self._requiresGrad and table.create(outSize) or nil
 	task.desynchronize()
 	local coordIn = table.create(rank, 1)
 	for flatIn = 1, size do
-		local idx0 = flatIn - 1
-		for d = 1, rank do
-			local stride = inStrides[d]
-			local v = math.floor(idx0 / stride)
-			coordIn[d] = v + 1
-			idx0 = idx0 % stride
-		end
 		local flatOut0 = 0
 		for outDim = 1, rank do
 			local inDim = perm[outDim]
@@ -384,9 +380,16 @@ local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 		if indexMap then
 			indexMap[outIndex] = flatIn
 		end
+		for d = rank, 1, -1 do
+			local val = coordIn[d] + 1
+			if val <= shape[d] then
+				coordIn[d] = val
+				break
+			end
+			coordIn[d] = 1
+		end
 	end
 	task.synchronize()
-
 	local out = newTensor(dst, outShape, self._dtype, self._requiresGrad, outSize)
 	if not self._requiresGrad then
 		return out
@@ -397,7 +400,6 @@ local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 	local shapeCopy = table.clone(shape)
 	local mapCopy = indexMap
 	local dtype = self._dtype
-
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if not self._requiresGrad then
 			return
@@ -428,7 +430,6 @@ local function sum(self: Tensor, dim: number?): Tensor
 	if dim then
 		error("Tensor.sum with dim not implemented yet")
 	end
-
 	local s = 0
 	local storage = self._storage
 	task.desynchronize()
@@ -436,16 +437,13 @@ local function sum(self: Tensor, dim: number?): Tensor
 		s += storage[i]
 	end
 	task.synchronize()
-
 	local out = newTensor({ s }, { 1 }, self._dtype, self._requiresGrad, 1)
-
 	if not self._requiresGrad then
 		return out
 	end
 	if not Tape then
 		Tape = require("./autograd/Tape") :: any
 	end
-
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if self._requiresGrad then
 			self._grad = self._grad or Tensor.zeros(self._shape, self._dtype, false)
