@@ -11,32 +11,44 @@ local Types = require("../Types")
 --@param stride number
 --@return Tensor
 return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.Tensor
-	task.desynchronize()
 	local C, H, W, B = X._shape[1], X._shape[2], X._shape[3], X._shape[4]
 	local Ho = math.floor((H - KH) / stride) + 1
 	local Wo = math.floor((W - KW) / stride) + 1
 	local Y = Tensor.zeros({ C, Ho, Wo, B }, X._dtype, X._requiresGrad)
-	local argmax = table.create(C * Ho * Wo * B, 0) -- store linear X indices
-	for b = 1, B do
-		for c = 1, C do
+	task.desynchronize()
+	local argmax = table.create(C * Ho * Wo * B, 0)
+	local HW_B = H * W * B
+	local W_B = W * B
+	local Wo_B = Wo * B
+	local HoWoB = Ho * Wo * B
+	local xStorage = X._storage
+	local yStorage = Y._storage
+	for c = 1, C do
+		local c_offset = (c - 1) * HW_B
+		local c_out_offset = (c - 1) * HoWoB
+		for b = 1, B do
+			local b_offset = b - 1
 			for i = 1, Ho do
+				local i_start = (i - 1) * stride
+				local i_out_offset = (i - 1) * Wo_B
 				for j = 1, Wo do
-					local best = -1 / 0
+					local j_start = (j - 1) * stride
+					local best = -math.huge
 					local bestXi = 0
-					for ki = 1, KH do
-						for kj = 1, KW do
-							local ii = (i - 1) * stride + ki
-							local jj = (j - 1) * stride + kj
-							local xi = (((c - 1) * H + (ii - 1)) * W + (jj - 1)) * B + b - 1
-							local v = X._storage[xi + 1]
+					for ki = 0, KH - 1 do
+						local row_offset = (i_start + ki) * W_B
+						for kj = 0, KW - 1 do
+							local col_part = (j_start + kj) * B
+							local xi = c_offset + row_offset + col_part + b_offset
+							local v = xStorage[xi + 1]
 							if v > best then
 								best = v
 								bestXi = xi
 							end
 						end
 					end
-					local yi = (((c - 1) * Ho + (i - 1)) * Wo + (j - 1)) * B + b
-					Y._storage[yi] = best
+					local yi = c_out_offset + i_out_offset + (j - 1) * B + b_offset + 1
+					yStorage[yi] = best
 					argmax[yi] = bestXi
 				end
 			end
@@ -46,13 +58,14 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 	return Tape.makeNode(Y, { X }, function(gy: Types.Tensor)
 		if X._requiresGrad then
 			X._grad = X._grad or Tensor.zeros(X._shape, X._dtype, false)
-			local xGrad = X._grad :: Types.Tensor
 			task.desynchronize()
-			for idx = 1, #gy._storage do
+			local xGrad = X._grad :: Types.Tensor
+			local xGradStorage = xGrad._storage
+			local gyStorage = gy._storage
+			local n = #gyStorage
+			for idx = 1, n do
 				local xi = argmax[idx]
-				if xi ~= 0 then
-					xGrad._storage[xi + 1] += gy._storage[idx]
-				end
+				xGradStorage[xi + 1] += gyStorage[idx]
 			end
 			task.synchronize()
 		end
