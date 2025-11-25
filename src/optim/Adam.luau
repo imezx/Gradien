@@ -2,10 +2,11 @@
 --!optimize 2
 local Types = require("../Types")
 
-return function(params: { Types.Tensor }, lr: number, b1: number?, b2: number?, eps: number?)
+return function(params: { Types.Tensor }, lr: number, b1: number?, b2: number?, eps: number?, weight_decay: number?)
 	b1 = b1 or 0.9
 	b2 = b2 or 0.999
 	eps = eps or 1e-8
+	local wd = weight_decay or 0
 	local m: { [Types.Tensor]: { [number]: number } } = {}
 	local v: { [Types.Tensor]: { [number]: number } } = {}
 	local t = 0
@@ -30,6 +31,9 @@ return function(params: { Types.Tensor }, lr: number, b1: number?, b2: number?, 
 					end
 					for i = 1, #ps do
 						local g = gs[i]
+						if wd ~= 0 then
+							g = g + wd * ps[i]
+						end
 						mi[i] = (b1 :: number) * mi[i] + (1 - (b1 :: number)) * g
 						vi[i] = (b2 :: number) * vi[i] + (1 - (b2 :: number)) * g * g
 						local mHat = mi[i] / (1 - b1t)
@@ -54,10 +58,11 @@ return function(params: { Types.Tensor }, lr: number, b1: number?, b2: number?, 
 			b2: number,
 			eps: number,
 			t: number,
+			wd: number,
 			m: { [Types.Tensor]: { [number]: number } },
 			v: { [Types.Tensor]: { [number]: number } },
 		}
-			return { lr = lr, b1 = b1, b2 = b2, eps = eps, t = t, m = m, v = v }
+			return { lr = lr, b1 = b1, b2 = b2, eps = eps, t = t, wd = wd, m = m, v = v }
 		end,
 		setState = function(
 			_,
@@ -67,6 +72,7 @@ return function(params: { Types.Tensor }, lr: number, b1: number?, b2: number?, 
 				b2: number,
 				eps: number,
 				t: number,
+				wd: number,
 				m: { [Types.Tensor]: { [number]: number } },
 				v: { [Types.Tensor]: { [number]: number } },
 			}
@@ -76,6 +82,7 @@ return function(params: { Types.Tensor }, lr: number, b1: number?, b2: number?, 
 			b2 = state.b2 or b2
 			eps = state.eps or eps
 			t = state.t or t
+			wd = state.wd or wd
 			m = state.m or m
 			v = state.v or v
 		end,

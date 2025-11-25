@@ -86,3 +86,21 @@ Applies a 2D transposed convolution operator over an input image composed of sev
 local convT = Gradien.NN.ConvTranspose2d(64, 3, 3, 3) -- 64 input channels, 3 output, 3x3 kernel
 ```
 :::
+
+## `NN.GroupNorm`
+
+Applies Group Normalization over a mini-batch of inputs. Divides channels into groups and normalizes within each group independently.
+
+::: code-group
+```lua [Definition]
+(num_groups: number, num_channels: number, eps: number?) -> Module
+```
+```lua [Example]
+local gn = Gradien.NN.GroupNorm(8, 64) -- 8 groups, 64 channels
+```
+:::
+
+**Parameters:**
+- `num_groups` (number): Number of groups to divide channels into. Must divide `num_channels` evenly.
+- `num_channels` (number): Number of channels expected in the input.
+- `eps` (number, optional): Small value added to variance for numerical stability. Default: `1e-5`.

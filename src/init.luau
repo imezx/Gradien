@@ -1,7 +1,7 @@
 --[[
 Gradien (by @Eternity_Devs)
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
-Version 1.4.0-rc4
+Version 1.4.0-rc5
 ]]
 --!strict
 local Gradien = {}
@@ -23,6 +23,7 @@ Gradien.Experimental = {
 	},
 	NN = {
 		MambaBlock = require("@self/experimental/nn/Mamba"),
+		KAN = require("@self/experimental/nn/KAN"),
 	},
 	Optim = {
 		Metaheuristic = require("@self/experimental/optim/Metaheuristic"),
@@ -80,6 +81,7 @@ Gradien.NN = {
 	MaxPool2d = require("@self/nn/MaxPool2d"),
 	AvgPool2d = require("@self/nn/AvgPool2d"),
 	ConvTranspose2d = require("@self/nn/ConvTranspose2d"),
+	GroupNorm = require("@self/nn/GroupNorm"),
 	Flatten = require("@self/nn/Flatten"),
 }
 Gradien.Optim = {

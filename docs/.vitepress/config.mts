@@ -61,6 +61,7 @@ export default defineConfig({
         items: [
           { text: 'Quantum-Inspired (QIMHNN)', link: '/api/experimental/qimhnn' },
           { text: 'Swarm Optimizers', link: '/api/experimental/optimizers' },
+          { text: 'Neural Networks (KAN)', link: '/api/experimental/nn' },
           { text: 'Mamba Block', link: '/api/experimental/mamba' },
           { text: 'Feudal', link: '/api/experimental/feudal' }
         ]

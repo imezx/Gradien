@@ -5,12 +5,18 @@ Gradien includes a wide variety of optimizers for different use cases.
 ## Adaptive Methods
 
 ### `Adam`
-Adaptive Moment Estimation. Good default.
+Adaptive Moment Estimation. Good default. Supports L2 weight decay (applied to gradients).
+
 ::: code-group
 ```lua [Constructor]
-(params: {Tensor}, lr: number, b1: num?, b2: num?, eps: num?) -> Optimizer
+(params: {Tensor}, lr: number, b1: num?, b2: num?, eps: num?, weight_decay: num?) -> Optimizer
+```
+```lua [Example]
+local opt = Gradien.Optim.Adam(params, 0.001, 0.9, 0.999, 1e-8, 0.01) -- with weight decay
 ```
 :::
+
+**Note:** Adam with `weight_decay` applies L2 regularization by modifying gradients. For decoupled weight decay, use `AdamW` instead.
 
 ### `AdamW` <Badge type="tip" text="Modern" />
 Adam with decoupled weight decay. Often generalizes better than Adam.
