@@ -73,3 +73,16 @@ Applies a 2D average pooling over an input signal.
 local pool = Gradien.NN.AvgPool2d(2, 2, 2) -- 2x2 kernel, stride 2
 ```
 :::
+
+## `NN.ConvTranspose2d`
+
+Applies a 2D transposed convolution operator over an input image composed of several input planes.
+
+::: code-group
+```lua [Definition]
+(C_in: number, C_out: number, KH: number, KW: number) -> Module
+```
+```lua [Example]
+local convT = Gradien.NN.ConvTranspose2d(64, 3, 3, 3) -- 64 input channels, 3 output, 3x3 kernel
+```
+:::
