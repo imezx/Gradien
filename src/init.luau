@@ -51,6 +51,7 @@ Gradien.Ops = {
 	Softmax = require("@self/ops/Softmax"),
 	AvgPool2d = require("@self/ops/AvgPool2d"),
 	Scan = require("@self/ops/Scan"),
+	ConvTranspose2d = require("@self/ops/ConvTranspose2d"),
 }
 Gradien.NN = {
 	Linear = require("@self/nn/Linear"),
@@ -78,6 +79,7 @@ Gradien.NN = {
 	Conv2d = require("@self/nn/Conv2d"),
 	MaxPool2d = require("@self/nn/MaxPool2d"),
 	AvgPool2d = require("@self/nn/AvgPool2d"),
+	ConvTranspose2d = require("@self/nn/ConvTranspose2d"),
 	Flatten = require("@self/nn/Flatten"),
 }
 Gradien.Optim = {
