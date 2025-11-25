@@ -11,7 +11,7 @@ If you use [Wally](https://wally.run/) for dependency management, add Gradien to
 ::: code-group
 ```toml [wally.toml]
 [dependencies]
-Gradien = "eternitydevs/gradien@1.4.0-rc3"
+Gradien = "eternitydevs/gradien@1.4.0-rc5"
 ```
 
 ```bash [Terminal]
