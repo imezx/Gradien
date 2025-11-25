@@ -60,7 +60,9 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Quantum-Inspired (QIMHNN)', link: '/api/experimental/qimhnn' },
-          { text: 'Swarm Optimizers', link: '/api/experimental/optimizers' }
+          { text: 'Swarm Optimizers', link: '/api/experimental/optimizers' },
+          { text: 'Mamba Block', link: '/api/experimental/mamba' },
+          { text: 'Feudal', link: '/api/experimental/feudal' }
         ]
       },
       {
