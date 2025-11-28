@@ -22,7 +22,7 @@ return function(): Types.Module<Types.Tensor, Types.Tensor>
 							for b = 1, B do
 								local xi = (((c - 1) * H + (i - 1)) * W + (j - 1)) * B + b
 								local yi = ((((c - 1) * H + (i - 1)) * W + (j - 1)) * B) + b
-								out._storage[yi] = x._storage[xi + 1]
+								out._storage[yi] = x._storage[xi]
 							end
 						end
 					end
@@ -41,7 +41,7 @@ return function(): Types.Module<Types.Tensor, Types.Tensor>
 									for b = 1, B do
 										local xi = (((c - 1) * H + (i - 1)) * W + (j - 1)) * B + b
 										local yi = ((((c - 1) * H + (i - 1)) * W + (j - 1)) * B) + b
-										x._grad._storage[xi + 1] += gy._storage[yi]
+										x._grad._storage[xi] += gy._storage[yi]
 									end
 								end
 							end
