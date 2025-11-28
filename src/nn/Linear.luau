@@ -47,7 +47,7 @@ return function(
 			local b_store = b._storage
 			local out_store = out._storage
 			for i = 1, M do
-				local bias_val = b_store[i]
+				local bias_val = b_store[i] or 0
 				local w_offset = (i - 1) * K
 				local out_offset = (i - 1) * N
 				for j = 1, N do
@@ -55,7 +55,9 @@ return function(
 					for k = 1, K do
 						-- W index: w_offset + k
 						-- x index: (k-1)*N + j
-						acc += W_store[w_offset + k] * x_store[(k - 1) * N + j]
+						local w_val = W_store[w_offset + k] or 0
+						local x_val = x_store[(k - 1) * N + j] or 0
+						acc += w_val * x_val
 					end
 					out_store[out_offset + j] = acc + bias_val -- Fuse bias add
 				end
@@ -84,7 +86,7 @@ return function(
 						local acc = 0
 						local offset = (i - 1) * B
 						for j = 1, B do
-							acc += gy_store[offset + j]
+							acc += gy_store[offset + j] or 0
 						end
 						bg_store[i] += acc
 					end
@@ -103,7 +105,9 @@ return function(
 							local x_offset = (k - 1) * B
 							for j = 1, B do
 								-- gy[i, j] * x[k, j]
-								acc += gy_store[gy_offset + j] * x_store[x_offset + j]
+								local gy_val = gy_store[gy_offset + j] or 0
+								local x_val = x_store[x_offset + j] or 0
+								acc += gy_val * x_val
 							end
 							wg_store[w_offset + k] += acc
 						end
@@ -122,7 +126,9 @@ return function(
 							for i = 1, outF do
 								-- W[i, k] => (i-1)*inF + k
 								-- gy[i, j] => (i-1)*B + j
-								acc += W_store[(i - 1) * inF + k] * gy_store[(i - 1) * B + j]
+								local w_val = W_store[(i - 1) * inF + k] or 0
+								local gy_val = gy_store[(i - 1) * B + j] or 0
+								acc += w_val * gy_val
 							end
 							xg_store[x_offset + j] += acc
 						end
