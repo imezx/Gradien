@@ -14,7 +14,7 @@ local function makeActLayer(actAny: any)
 	end
 	local name = (actAny ~= nil and actAny) or "ReLU"
 	local af = A[name]
-	assert(type(af) == "function", ("BDQ: unknown activation '%s'"):format(tostring(name)))
+	assert(type(af) == "function", `BDQ: unknown activation '{name}'.`)
 	return function(_, x) return af(x) end
 end
 
@@ -141,7 +141,7 @@ end
 
 return function(cfg)
 	assert(cfg.modelFactory or (cfg.stateDim and cfg.hidden and cfg.branches),
-		"BDQ: provide modelFactory OR (stateDim, hidden, branches)")
+		`BDQ: provide modelFactory OR (stateDim, hidden, branches).`)
 	local branches = cfg.branches
 	local policy = cfg.modelFactory and cfg.modelFactory() or buildDefaultBranched(
 		cfg.stateDim :: number,

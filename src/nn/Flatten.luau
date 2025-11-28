@@ -50,7 +50,7 @@ return function(): Types.Module<Types.Tensor, Types.Tensor>
 					end
 				end)
 			else
-				error("Flatten: unsupported tensor rank " .. tostring(#shape))
+				error(`Flatten: unsupported tensor rank {#shape}.`)
 			end
 		end,
 		parameters = function(_)

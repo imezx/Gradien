@@ -50,7 +50,7 @@ local function formatTime(value: number, precision: number): string
 		scaled = value * 1e9
 	end
 	local prec = math.max(0, precision)
-	local spec = "%." .. tostring(prec) .. "f%s"
+	local spec = `%.{prec}f{unit}`
 	return fmt(spec, scaled, unit)
 end
 
@@ -161,7 +161,7 @@ function Profiler.instrument(target: any, methods: { string } | string, opts: { 
 	else
 		names = methods
 	end
-	local prefix = if opts and opts.prefix then opts.prefix else tostring(target)
+	local prefix = if opts and opts.prefix then opts.prefix else `{target}`
 	local originals = {}
 	for _, key in names do
 		local fn = target[key]

@@ -39,7 +39,7 @@ end
 
 function Utils.getActivationFn(name: ActivationName?): (Types.Tensor) -> Types.Tensor
 	local fn = ActivationLookup[normalizeKey(name)]
-	assert(fn, string.format("Unsupported activation '%s'", tostring(name)))
+	assert(fn, `Unsupported activation '{name}'.`)
 	return fn
 end
 
