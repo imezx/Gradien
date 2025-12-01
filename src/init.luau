@@ -16,6 +16,7 @@ Gradien.Types = require("@self/Types")
 Gradien.Util = require("@self/Util")
 Gradien.Tensor = require("@self/Tensor")
 Gradien.Debug = require("@self/Debug")
+Gradien.Tokenizers = require("@self/tokenizers")
 
 Gradien.Experimental = {
 	Models = {
@@ -145,3 +146,4 @@ Gradien.Tools = {
 }
 
 return Gradien
+

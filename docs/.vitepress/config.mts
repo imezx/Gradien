@@ -80,7 +80,8 @@ export default defineConfig({
           { text: 'Data Pipeline', link: '/api/utils/data' },
           { text: 'Model Tools', link: '/api/utils/model-tools' },
           { text: 'Visualization', link: '/api/utils/visualization' },
-          { text: 'Metrics & Debugging', link: '/api/utils/debug' }
+          { text: 'Metrics & Debugging', link: '/api/utils/debug' },
+          { text: 'Tokenizers', link: '/api/utils/tokenizers' }
         ]
       }
     ],

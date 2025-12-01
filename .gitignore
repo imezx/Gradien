@@ -18,3 +18,4 @@ generate.py
 docs/.vitepress/*
 benchmark.luau
 buffer
+test_tokenizer.luau
