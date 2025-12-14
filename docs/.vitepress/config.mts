@@ -24,6 +24,7 @@ export default defineConfig({
           { text: 'The Trainer Loop', link: '/guide/trainer' },
           { text: 'Saving & Loading', link: '/guide/state' },
           { text: 'Creating a Neural Network', link: '/guide/create-nn' },
+          { text: 'Porting PyTorch', link: '/guide/porting-pytorch' },
         ]
       },
       {
