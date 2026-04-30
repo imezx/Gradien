@@ -183,6 +183,10 @@ return function(cfg)
 
 	local Agent = {}
 
+    Agent.optimizer = actorOpt
+    Agent.actorOptimizer = actorOpt
+    Agent.criticOptimizer = criticOpt
+
 	-- returns a {number} array of length actionDim.
 	function Agent:act(state: Types.Tensor, evaluate: boolean?)
 		local a = actor:forward(state) -- {aDim, 1}
