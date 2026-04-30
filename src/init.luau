@@ -1,7 +1,7 @@
 --[[
 Gradien (by @Eternity_Devs)
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
-Version 1.4.0-rc5
+Version 1.4.1
 ]]
 --!strict
 local Gradien = {}
