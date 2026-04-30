@@ -177,7 +177,7 @@ local function posByIndex(nodePicks, nodePos, sizes, layerIdx: number, neuronInd
 end
 
 function Visual2D.render(model: any, parent: Instance, opt: RenderOptions?): RenderHandle
-	opt = opt or {}
+	local opt = opt or {}
 	assert(parent ~= nil, "Visual2D.render: parent (ScreenGui/BillboardGui/SurfaceGui/Frame) is required")
 
 	local NAME = opt.name or ("NNViz2D_" .. HttpService:GenerateGUID(false))

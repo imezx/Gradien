@@ -82,6 +82,7 @@ return function(
 				t = state.t
 			end
 		end,
+		setLr = function() end,
 	}
 	return self
 end

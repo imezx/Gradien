@@ -28,22 +28,6 @@ local function ensureBuffer(buf: { number }?, size: number): { number }
 	return buf
 end
 
-local function clipScaleOf(updates: { number }, count: number)
-	if clipThreshold == 0 then
-		return 1
-	end
-	local acc = 0
-	for i = 1, count do
-		local u = updates[i]
-		acc += u * u
-	end
-	local rms = math.sqrt(acc / count)
-	if rms > clipThreshold then
-		return clipThreshold / rms
-	end
-	return 1
-end
-
 return function(
 	params: { Types.Tensor },
 	lr: number,
@@ -69,6 +53,22 @@ return function(
 		{}
 	local full: { [Types.Tensor]: { v: { number }, updates: { number } } } = {}
 	local self = {}
+
+	local function clipScaleOf(updates: { number }, count: number)
+		if clipThreshold == 0 then
+			return 1
+		end
+		local acc = 0
+		for i = 1, count do
+			local u = updates[i]
+			acc += u * u
+		end
+		local rms = math.sqrt(acc / count)
+		if rms > clipThreshold then
+			return clipThreshold / rms
+		end
+		return 1
+	end
 
 	function self:step()
 		task.desynchronize()

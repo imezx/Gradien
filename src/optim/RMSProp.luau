@@ -30,6 +30,7 @@ return function(params: { any }, lr: number, decay: number?, eps: number?)
 				p._grad = nil
 			end
 		end,
+		setLr = function() end,
 	}
 	return self
 end

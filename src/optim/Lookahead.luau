@@ -37,5 +37,7 @@ return function(params, base, k: number?, alpha: number?)
 			task.synchronize()
 		end
 	end
+	function opt:setLr()
+	end
 	return opt
 end

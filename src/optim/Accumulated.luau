@@ -31,7 +31,7 @@ return function(opt: Types.Optimizer, steps: number, params: { Types.Tensor }?, 
 				return
 			end
 			if doScale then
-				scaleGrads(params, invSteps)
+				scaleGrads(params :: any, invSteps)
 			end
 			opt:step()
 			opt:zeroGrad()
@@ -42,7 +42,7 @@ return function(opt: Types.Optimizer, steps: number, params: { Types.Tensor }?, 
 				return
 			end
 			if doScale then
-				scaleGrads(params, 1 / counter)
+				scaleGrads(params :: any, 1 / counter)
 			end
 			opt:step()
 			opt:zeroGrad()
@@ -72,7 +72,7 @@ return function(opt: Types.Optimizer, steps: number, params: { Types.Tensor }?, 
 				steps: number,
 				counter: number,
 				normalize: boolean,
-				optState: { any },
+				optState: Types.OptimizerState,
 			}
 		)
 			if state.steps ~= nil then

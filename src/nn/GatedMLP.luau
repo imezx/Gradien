@@ -17,10 +17,10 @@ end
 local function parameters(self): { Types.Tensor }
 	local p, a, b = {}, self.fc_in:parameters(), self.fc_out:parameters()
 	for i = 1, #a do
-		p[#p + 1] = a[i]
+		table.insert(p, a[i])
 	end
 	for i = 1, #b do
-		p[#p + 1] = b[i]
+		table.insert(p, b[i])
 	end
 	return p
 end

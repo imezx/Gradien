@@ -101,6 +101,7 @@ return function(params: { Types.Tensor }, lr: number, momentum: number?, nestero
 				step = step,
 			}
 		end,
+		setLr = function() end,
 	}
 	return self
 end

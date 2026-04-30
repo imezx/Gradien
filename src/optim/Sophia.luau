@@ -80,5 +80,6 @@ return function(params: { Types.Tensor }, lr: number, betas: { number }?, rho: n
 			m = state.m or m
 			h = state.h or h
 		end,
+		setLr = function() end,
 	}
 end

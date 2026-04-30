@@ -36,16 +36,18 @@ return function(params, lr: number, beta1: number?, beta2: number?, weightDecay:
 						p._storage[k] -= opt.lr * weightDecay * p._storage[k]
 					end
 					-- momentum
-					mi[k] = beta1 * mi[k] + (1 - beta1) * g._storage[k]
+					mi[k] = beta1 * mi[k] + (1 - beta1 :: number) * g._storage[k]
 					-- lookahead step
 					local update = math.sign(mi[k]) * opt.lr
 					p._storage[k] -= update
 					-- second momentum blend
-					mi[k] = beta2 * mi[k] + (1 - beta2) * g._storage[k]
+					mi[k] = beta2 * mi[k] + (1 - beta2 :: number) * g._storage[k]
 				end
 			end
 		end
 		task.synchronize()
+	end
+	function opt:setLr()
 	end
 	return opt
 end

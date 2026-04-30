@@ -45,7 +45,7 @@ local function observeAll(self, ts: { Types.Tensor })
 	end
 end
 
-local function trainStepAll(self): { Types.Tensor? }
+local function trainStepAll(self): { Types.Tensor }
 	local out = table.create(self._numAgents)
 	for idx = 1, self._numAgents do
 		local agent = self._agents[idx]
@@ -58,7 +58,7 @@ local function trainStepAll(self): { Types.Tensor? }
 	return out
 end
 
-local function trainStep(self, i: number?): Types.Tensor?
+local function trainStep(self, i: number?): (Types.Tensor | { Types.Tensor })?
 	if i ~= nil then
 		local agent = getAgent(self, i)
 		if agent.trainStep then
@@ -77,7 +77,7 @@ local function parameters(self): { Types.Tensor }
 			local ps = agent:parameters()
 			if ps then
 				for j = 1, #ps do
-					params[#params + 1] = ps[j]
+					table.insert(params, ps[j])
 				end
 			end
 		end

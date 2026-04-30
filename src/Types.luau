@@ -34,6 +34,7 @@ export type Optimizer = {
 	zeroGrad: (self: Optimizer) -> (),
 	getState: (self: Optimizer) -> OptimizerState?,
 	setState: (self: Optimizer, state: OptimizerState?) -> (),
+	setLr: (self: Optimizer, lr: number) -> (),
 }
 
 export type LossFn = (pred: Tensor, target: Tensor) -> (number, Tensor)

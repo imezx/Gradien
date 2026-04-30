@@ -58,6 +58,7 @@ local function new(params, decay: number?)
 		update = update,
 		apply = apply,
 		restore = restore,
+		setLr = function() end,
 	}
 end
 
