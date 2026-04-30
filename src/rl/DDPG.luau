@@ -4,26 +4,11 @@ local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Buffer = require("../Util/Buffer")
 local Util = require("../Util")
+local Types = require("../Types")
+local Losses = require("../nn/Losses")
 local assert = Util.Assert
 
---[[
-DDPG — Deep Deterministic Policy Gradient (Lillicrap et al. 2015)
-
-cfg fields:
-  stateDim        number         — observation dimension
-  actionDim       number         — action dimension
-  actionHigh      number?        — action scale bound (default 1.0)
-  actorFactory    () -> Module   — actor: {stateDim,B} -> {actionDim,B}, tanh output assumed
-  criticFactory   () -> Module   — critic: {stateDim+actionDim,B} -> {1,B}
-  optimizerFactory | actorOptimizerFactory + criticOptimizerFactory
-  replay          ReplayBuffer?  — external replay (must expose push/canSample/sample)
-  capacity        number?        — internal replay capacity if no external replay (default 100000)
-  batchSize       number?        — (default 64)
-  gamma           number?        — discount (default 0.99)
-  tau             number?        — Polyak coefficient (default 0.005)
-  explorationNoise number?       — std of Gaussian exploration noise (default 0.1)
-  warmupSteps     number?        — random actions before training starts (default 1000)
-]]
+-- DDPG - Deep Deterministic Policy Gradient (Lillicrap et al. 2015)
 return function(cfg)
 	assert(cfg.stateDim, "DDPG: cfg.stateDim required")
 	assert(cfg.actionDim, "DDPG: cfg.actionDim required")
@@ -64,7 +49,9 @@ return function(cfg)
 		task.desynchronize()
 		for i = 1, #sp do
 			local ss, ds = sp[i]._storage, dp[i]._storage
-			for k = 1, #ss do ds[k] = ss[k] end
+			for k = 1, #ss do
+				ds[k] = ss[k]
+			end
 		end
 		task.synchronize()
 	end
@@ -95,7 +82,9 @@ return function(cfg)
 
 		local function rpush(t)
 			assert(t.state and t.nextState and t.action, "DDPG replay: state/action/nextState required")
-			if not rDtype then rDtype = t.state._dtype end
+			if not rDtype then
+				rDtype = t.state._dtype
+			end
 			local i = rHead
 			rS[i] = Buffer.writeDenseArray(t.state._storage, rDtype, rS[i])
 			rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rDtype, rNS[i])
@@ -108,10 +97,14 @@ return function(cfg)
 			end
 			rR[i], rD[i] = t.reward, t.done and true or false
 			rHead = (rHead % cap) + 1
-			if rSize < cap then rSize += 1 end
+			if rSize < cap then
+				rSize += 1
+			end
 		end
 
-		local function rcanSample(n) return rSize >= n end
+		local function rcanSample(n)
+			return rSize >= n
+		end
 
 		local function rsample(n)
 			local dtype = rDtype or "f64"
@@ -145,26 +138,34 @@ return function(cfg)
 		task.desynchronize()
 		for d = 1, sDim do
 			local base = (d - 1) * B
-			for b = 1, B do sa._storage[base + b] = state._storage[base + b] end
+			for b = 1, B do
+				sa._storage[base + b] = state._storage[base + b]
+			end
 		end
 		for d = 1, aDim do
 			local srcBase = (d - 1) * B
 			local dstBase = (sDim + d - 1) * B
-			for b = 1, B do sa._storage[dstBase + b] = action._storage[srcBase + b] end
+			for b = 1, B do
+				sa._storage[dstBase + b] = action._storage[srcBase + b]
+			end
 		end
 		task.synchronize()
 		-- grad routing: we only need grad w.r.t. action for the actor loss
 		if action._requiresGrad then
 			return Tape.makeNode(sa, { action }, function(gsa)
-				if not action._requiresGrad then return end
+				if not action._requiresGrad then
+					return
+				end
 				action._grad = action._grad or Tensor.zeros(action._shape)
-				local ags = action._grad._storage
+				local ags = (action._grad :: any)._storage
 				local gas = gsa._storage
 				task.desynchronize()
 				for d = 1, aDim do
 					local srcBase = (sDim + d - 1) * B
 					local dstBase = (d - 1) * B
-					for b = 1, B do ags[dstBase + b] += gas[srcBase + b] end
+					for b = 1, B do
+						ags[dstBase + b] += gas[srcBase + b]
+					end
 				end
 				task.synchronize()
 			end)
@@ -182,7 +183,7 @@ return function(cfg)
 
 	local Agent = {}
 
-	-- Returns a {number} array of length actionDim.
+	-- returns a {number} array of length actionDim.
 	function Agent:act(state: Types.Tensor, evaluate: boolean?)
 		local a = actor:forward(state) -- {aDim, 1}
 		local out = table.create(aDim, 0.0)
@@ -212,7 +213,6 @@ return function(cfg)
 		local S, A, R, NS, D = batch.S, batch.A, batch.R, batch.NS, batch.D
 		local B = batchSize
 
-		-- ---- critic update ----
 		-- y = r + gamma * (1-done) * Q'(s', mu'(s'))
 		local nextA = actorTarget:forward(NS) -- {aDim, B}
 		local nsA = concat(NS, nextA)
@@ -229,11 +229,10 @@ return function(cfg)
 		criticOpt:zeroGrad()
 		local sA = concat(S, A) -- A has no grad here
 		local Q = critic:forward(sA) -- {1, B}
-		local criticLoss, gQ = (require("../nn/Losses")).mse_backward(Q, targetQ)
+		local criticLoss, gQ = Losses.mse_backward(Q, targetQ)
 		Tape.backwardFrom(Q, gQ)
 		criticOpt:step()
 
-		-- ---- actor update ----
 		-- maximize Q(s, mu(s)) -> minimize -Q
 		actorOpt:zeroGrad()
 		local muA = actor:forward(S) -- {aDim, B}, requiresGrad=true via actor params
@@ -257,12 +256,20 @@ return function(cfg)
 		return { criticLoss = criticLoss }
 	end
 
-	function Agent:getActor() return actor end
-	function Agent:getCritic() return critic end
+	function Agent:getActor()
+		return actor
+	end
+	function Agent:getCritic()
+		return critic
+	end
 	function Agent:parameters()
 		local params = {}
-		for _, p in ipairs(actor:parameters()) do table.insert(params, p) end
-		for _, p in ipairs(critic:parameters()) do table.insert(params, p) end
+		for _, p in ipairs(actor:parameters()) do
+			table.insert(params, p)
+		end
+		for _, p in ipairs(critic:parameters()) do
+			table.insert(params, p)
+		end
 		return params
 	end
 

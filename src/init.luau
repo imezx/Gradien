@@ -84,6 +84,8 @@ Gradien.NN = {
 	ConvTranspose2d = require("@self/nn/ConvTranspose2d"),
 	GroupNorm = require("@self/nn/GroupNorm"),
 	Flatten = require("@self/nn/Flatten"),
+	AttnResBlock = require("@self/nn/AttnResBlock"),
+	Upsample = require("@self/nn/Upsample")
 }
 Gradien.Optim = {
 	SGD = require("@self/optim/SGD"),
@@ -114,6 +116,9 @@ Gradien.RL = {
 	A2C = require("@self/rl/A2C"),
 	PPO = require("@self/rl/PPO"),
 	MultiAgent = require("@self/rl/MultiAgent"),
+	SAC = require("@self/rl/SAC"),
+	TD3 = require("@self/rl/TD3"),
+	DDPG = require("@self/rl/DDPG"),
 }
 Gradien.Classic = {
 	SoftmaxRegression = require("@self/classic/SoftmaxRegression"),
@@ -124,6 +129,7 @@ Gradien.Classic = {
 	KNN = require("@self/classic/KNN"),
 	GaussianNB = require("@self/classic/GaussianNB"),
 	MultinomialNB = require("@self/classic/MultinomialNB"),
+	ElasticNet = require("@self/classic/ElasticNet"),
 }
 Gradien.Preprocess = {
 	StandardScaler = require("@self/preprocess/StandardScaler"),

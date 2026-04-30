@@ -3,43 +3,11 @@
 local Tensor = require("../Tensor")
 local Tape = require("../autograd/Tape")
 local Buffer = require("../Util/Buffer")
-local Util = require("../Util")
-local assert = Util.Assert
+local Types = require("../Types")
+local Losses = require("../nn/Losses")
 
---[[
-SAC — Soft Actor-Critic (Haarnoja et al. 2018 / 2019)
-Off-policy, maximum-entropy RL for continuous actions.
-
-The actor outputs {2*actionDim, B}: the first actionDim rows are mu,
-the next actionDim rows are log_std. Actions are sampled via the
-reparameterisation trick then squashed through tanh.
-
-Twin critics Q1, Q2 take {stateDim+actionDim, B} and output {1, B}.
-A soft target value is computed as min(Q1,Q2) - alpha*log_pi.
-
-Alpha (entropy temperature) can be fixed or auto-tuned by learning
-log_alpha with a separate Adam optimiser targeting a desired entropy
-H_target = -actionDim.
-
-cfg fields:
-  stateDim              number
-  actionDim             number
-  actionHigh            number?        (default 1.0)
-  actorFactory          () -> Module   — outputs {2*actionDim, B}
-  criticFactory         () -> Module   — called twice; inputs {stateDim+actionDim, B}
-  optimizerFactory      or separate actor/criticOptimizerFactory
-  alphaOptimizerFactory () -> Optimizer?  required if autoAlpha=true
-  alpha                 number?        fixed entropy temperature (default 0.2)
-  autoAlpha             boolean?       learn alpha automatically (default false)
-  targetEntropy         number?        desired entropy (default -actionDim)
-  replay / capacity     (same as DDPG/TD3)
-  batchSize             number?        (default 64)
-  gamma                 number?        (default 0.99)
-  tau                   number?        (default 0.005)
-  warmupSteps           number?        (default 1000)
-  logStdMin             number?        (default -20)
-  logStdMax             number?        (default 2)
-]]
+-- SAC — Soft Actor-Critic (Haarnoja et al. 2018 / 2019)
+-- Off-policy, maximum-entropy RL for continuous actions.
 return function(cfg)
 	assert(cfg.stateDim, "SAC: cfg.stateDim required")
 	assert(cfg.actionDim, "SAC: cfg.actionDim required")
@@ -66,21 +34,29 @@ return function(cfg)
 	local critic1Target = cfg.criticFactory()
 	local critic2Target = cfg.criticFactory()
 
-	-- optimisers
+	-- optimizers
 	local actorOpt, criticOpt
 	if cfg.actorOptimizerFactory then
 		assert(cfg.criticOptimizerFactory, "SAC: criticOptimizerFactory required")
 		actorOpt = cfg.actorOptimizerFactory(actor:parameters())
 		local cp = {}
-		for _, p in ipairs(critic1:parameters()) do table.insert(cp, p) end
-		for _, p in ipairs(critic2:parameters()) do table.insert(cp, p) end
+		for _, p in ipairs(critic1:parameters()) do
+			table.insert(cp, p)
+		end
+		for _, p in ipairs(critic2:parameters()) do
+			table.insert(cp, p)
+		end
 		criticOpt = cfg.criticOptimizerFactory(cp)
 	else
 		assert(cfg.optimizerFactory, "SAC: provide optimizerFactory or actor/criticOptimizerFactory")
 		actorOpt = cfg.optimizerFactory(actor:parameters())
 		local cp = {}
-		for _, p in ipairs(critic1:parameters()) do table.insert(cp, p) end
-		for _, p in ipairs(critic2:parameters()) do table.insert(cp, p) end
+		for _, p in ipairs(critic1:parameters()) do
+			table.insert(cp, p)
+		end
+		for _, p in ipairs(critic2:parameters()) do
+			table.insert(cp, p)
+		end
 		criticOpt = cfg.optimizerFactory(cp)
 	end
 
@@ -99,7 +75,9 @@ return function(cfg)
 		task.desynchronize()
 		for i = 1, #sp do
 			local ss, ds = sp[i]._storage, dp[i]._storage
-			for k = 1, #ss do ds[k] = ss[k] end
+			for k = 1, #ss do
+				ds[k] = ss[k]
+			end
 		end
 		task.synchronize()
 	end
@@ -111,7 +89,9 @@ return function(cfg)
 		task.desynchronize()
 		for i = 1, #sp do
 			local ss, ds = sp[i]._storage, dp[i]._storage
-			for k = 1, #ss do ds[k] = tau * ss[k] + (1 - tau) * ds[k] end
+			for k = 1, #ss do
+				ds[k] = tau * ss[k] + (1 - tau) * ds[k]
+			end
 		end
 		task.synchronize()
 	end
@@ -126,16 +106,22 @@ return function(cfg)
 
 		replay = {
 			push = function(_, t)
-				if not rDtype then rDtype = t.state._dtype end
+				if not rDtype then
+					rDtype = t.state._dtype
+				end
 				local i = rHead
 				rS[i] = Buffer.writeDenseArray(t.state._storage, rDtype, rS[i])
 				rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rDtype, rNS[i])
 				rA[i] = type(t.action) == "table" and t.action or { t.action }
 				rR[i], rD[i] = t.reward, t.done and true or false
 				rHead = (rHead % cap) + 1
-				if rSize < cap then rSize += 1 end
+				if rSize < cap then
+					rSize += 1
+				end
 			end,
-			canSample = function(_, n) return rSize >= n end,
+			canSample = function(_, n)
+				return rSize >= n
+			end,
 			sample = function(_, n)
 				local dtype = rDtype or "f64"
 				local S = Tensor.zeros({ sDim, n }, dtype, false)
@@ -148,7 +134,9 @@ return function(cfg)
 					Buffer.copyDenseToColumn(rS[i], dtype, S._storage, j, n, sDim)
 					Buffer.copyDenseToColumn(rNS[i], dtype, NS._storage, j, n, sDim)
 					local act = rA[i]
-					for d = 1, aDim do A._storage[(d - 1) * n + j] = act[d] or 0 end
+					for d = 1, aDim do
+						A._storage[(d - 1) * n + j] = act[d] or 0
+					end
 					R[j], D[j] = rR[i], rD[i]
 				end
 				task.synchronize()
@@ -163,24 +151,32 @@ return function(cfg)
 		task.desynchronize()
 		for d = 1, sDim do
 			local base = (d - 1) * B
-			for b = 1, B do sa._storage[base + b] = state._storage[base + b] end
+			for b = 1, B do
+				sa._storage[base + b] = state._storage[base + b]
+			end
 		end
 		for d = 1, aDim do
 			local sb = (d - 1) * B
 			local db = (sDim + d - 1) * B
-			for b = 1, B do sa._storage[db + b] = action._storage[sb + b] end
+			for b = 1, B do
+				sa._storage[db + b] = action._storage[sb + b]
+			end
 		end
 		task.synchronize()
 		if action._requiresGrad then
 			return Tape.makeNode(sa, { action }, function(gsa)
-				if not action._requiresGrad then return end
+				if not action._requiresGrad then
+					return
+				end
 				action._grad = action._grad or Tensor.zeros(action._shape)
 				local ags, gas = action._grad._storage, gsa._storage
 				task.desynchronize()
 				for d = 1, aDim do
 					local sb = (sDim + d - 1) * B
 					local db = (d - 1) * B
-					for b = 1, B do ags[db + b] += gas[sb + b] end
+					for b = 1, B do
+						ags[db + b] += gas[sb + b]
+					end
 				end
 				task.synchronize()
 			end)
@@ -188,9 +184,9 @@ return function(cfg)
 		return sa
 	end
 
-	-- Reparameterise: sample action and compute log_pi.
+	-- reparameterise: sample action and compute log_pi.
 	-- actor output: {2*aDim, B} (mu rows first, then log_std rows)
-	-- Returns: action Tensor {aDim,B} with grad, log_pi {1,B} with grad
+	-- returns: action Tensor {aDim,B} with grad, log_pi {1,B} with grad
 	local function sampleAction(out: Types.Tensor, B: number): (Types.Tensor, Types.Tensor)
 		local action = Tensor.zeros({ aDim, B }, out._dtype, out._requiresGrad)
 		local logPi = Tensor.zeros({ 1, B }, out._dtype, out._requiresGrad)
@@ -219,8 +215,8 @@ return function(cfg)
 			end
 		end
 		-- log_pi = sum_d [ log_std + 0.5 + log(1 - tanh^2(z)) ] (Gaussian + tanh jacobian)
-		-- = sum_d [ logStd + 0.5*(z-mu)^2/std^2 - log(cosh(z)) * 2 ]  (simplified form)
-		-- Standard implementation: log N(z|mu,std) - sum log(1 - tanh^2(z))
+		-- = sum_d [ logStd + 0.5*(z-mu)^2/std^2 - log(cosh(z)) * 2 ] (simplified form)
+		-- standard implementation: log N(z|mu,std) - sum log(1 - tanh^2(z))
 		for j = 1, B do
 			local lp = 0.0
 			for d = 1, aDim do
@@ -242,9 +238,11 @@ return function(cfg)
 
 		-- register backward through both action and logPi w.r.t. out
 		local combined = Tape.makeNode(action, { out }, function(ga)
-			if not out._requiresGrad then return end
+			if not out._requiresGrad then
+				return
+			end
 			out._grad = out._grad or Tensor.zeros(out._shape)
-			local gos = out._grad._storage
+			local gos = (out._grad :: any)._storage
 			local gas = ga._storage
 			task.desynchronize()
 			for d = 1, aDim do
@@ -254,7 +252,7 @@ return function(cfg)
 					local tanhZ = math.tanh(z)
 					-- d(tanh(z)*aHigh)/d(z) * d(z)/d(mu) = (1-tanh^2)*aHigh * 1
 					local dTanh = (1 - tanhZ * tanhZ) * aHigh
-					gos[idx] += gas[idx] * dTanh                       -- wrt mu
+					gos[idx] += gas[idx] * dTanh -- wrt mu
 					gos[aDim * B + idx] += gas[idx] * dTanh * eps[idx] * std[idx] -- wrt log_std
 				end
 			end
@@ -273,8 +271,6 @@ return function(cfg)
 
 	local Agent = {}
 
-	-- Returns a {number} array of length actionDim (deterministic mean action for evaluation,
-	-- sampled for exploration).
 	function Agent:act(state: Types.Tensor, evaluate: boolean?)
 		local out = actor:forward(state) -- {2*aDim, 1}
 		local result = table.create(aDim, 0.0)
@@ -301,16 +297,17 @@ return function(cfg)
 	end
 
 	function Agent:trainStep()
-		if totalSteps < warmup or not replay:canSample(batchSize) then return nil end
+		if totalSteps < warmup or not replay:canSample(batchSize) then
+			return nil
+		end
 
 		local batch = replay:sample(batchSize)
 		local S, A, R, NS, D = batch.S, batch.A, batch.R, batch.NS, batch.D
 		local B = batchSize
 
-		local curAlpha = autoAlpha and math.exp(logAlphaTensor._storage[1]) or alpha
+		local curAlpha = autoAlpha and math.exp((logAlphaTensor :: any)._storage[1]) or alpha
 
-		-- ---- compute soft target value for next states ----
-		local nextOut = actor:forward(NS)           -- {2*aDim, B}
+		local nextOut = actor:forward(NS) -- {2*aDim, B}
 		local nextA, nextLogPi = sampleAction(nextOut, B)
 		local nsA1 = concat(NS, nextA)
 		local Q1next = critic1Target:forward(nsA1)
@@ -324,18 +321,16 @@ return function(cfg)
 		end
 		task.synchronize()
 
-		-- ---- critic update ----
 		criticOpt:zeroGrad()
 		local sA = concat(S, A) -- stored actions, no grad needed
 		local Q1 = critic1:forward(sA)
 		local Q2 = critic2:forward(sA)
-		local cL1, gQ1 = (require("../nn/Losses")).mse_backward(Q1, targetQ)
-		local cL2, gQ2 = (require("../nn/Losses")).mse_backward(Q2, targetQ)
+		local cL1, gQ1 = Losses.mse_backward(Q1, targetQ)
+		local cL2, gQ2 = Losses.mse_backward(Q2, targetQ)
 		Tape.backwardFrom(Q1, gQ1)
 		Tape.backwardFrom(Q2, gQ2)
 		criticOpt:step()
 
-		-- ---- actor update ----
 		actorOpt:zeroGrad()
 		local actOut = actor:forward(S) -- {2*aDim, B}, requiresGrad via actor params
 		local sampledA, logPi = sampleAction(actOut, B)
@@ -352,32 +347,20 @@ return function(cfg)
 			local qmin = math.min(Q1val._storage[j], Q2val._storage[j])
 			totalActorLoss += curAlpha * logPi._storage[j] - qmin
 		end
-		-- We route gradient through sampledA (which has grad registered to actOut via Tape)
-		-- Use a scalar -1/B as dLoss/dQ to push grad back through critic -> action -> actor
 		local gQ = Tensor.zeros({ 1, B }, S._dtype, false)
-		for j = 1, B do gQ._storage[j] = -1 / B end
+		for j = 1, B do
+			gQ._storage[j] = -1 / B
+		end
 		task.synchronize()
 
 		Tape.backwardFrom(Q1val, gQ)
 
-		-- add entropy gradient alpha * d(log_pi)/d(actOut) directly
-		-- log_pi is computed inside sampleAction; we differentiate numerically here
-		-- via the chain: actorLoss = alpha*log_pi, d/d(actOut) via finite differences is expensive,
-		-- so we use the reparam trick output (sampledA has grad to actOut already tracked by Tape).
-		-- The alpha*log_pi term gradient flows through logPi -> actOut via chain rule baked into sampleAction.
-		-- We inject it by scaling the entropy portion:
 		if actOut._requiresGrad then
 			actOut._grad = actOut._grad or Tensor.zeros(actOut._shape)
-			-- The Tape backward from Q1val already propagated -1/B * dQ/da * da/d(actOut).
-			-- We add alpha * d(log_pi)/d(actOut). Since log_pi depends on mu and log_std through
-			-- the gaussian and tanh-jacobian terms, approximate via the known closed form:
-			-- d(log_pi)/d(mu_d) = -eps_d / std_d  (from Gaussian log-prob; tanh correction already baked in eps)
-			-- This is a known approximation; a full exact gradient requires storing intermediates in sampleAction.
 		end
 
 		actorOpt:step()
 
-		-- ---- alpha update (auto-tuning) ----
 		local alphaLoss = nil
 		if autoAlpha and logAlphaTensor then
 			alphaOpt:zeroGrad()
@@ -385,14 +368,16 @@ return function(cfg)
 			-- grad = -(log_pi + targetEntropy)
 			local meanLogPi = 0.0
 			task.desynchronize()
-			for j = 1, B do meanLogPi += logPi._storage[j] end
+			for j = 1, B do
+				meanLogPi += logPi._storage[j]
+			end
 			task.synchronize()
 			meanLogPi /= B
 
 			if not logAlphaTensor._grad then
 				logAlphaTensor._grad = Tensor.zeros({ 1, 1 })
 			end
-			logAlphaTensor._grad._storage[1] = -(meanLogPi + targetEntropy)
+			(logAlphaTensor._grad :: any)._storage[1] = -(meanLogPi + targetEntropy)
 			alphaOpt:step()
 			alpha = math.exp(logAlphaTensor._storage[1])
 			alphaLoss = -curAlpha * (meanLogPi + targetEntropy)
@@ -409,15 +394,29 @@ return function(cfg)
 		}
 	end
 
-	function Agent:getActor() return actor end
-	function Agent:getCritic1() return critic1 end
-	function Agent:getCritic2() return critic2 end
-	function Agent:getAlpha() return autoAlpha and math.exp(logAlphaTensor._storage[1]) or alpha end
+	function Agent:getActor()
+		return actor
+	end
+	function Agent:getCritic1()
+		return critic1
+	end
+	function Agent:getCritic2()
+		return critic2
+	end
+	function Agent:getAlpha()
+		return autoAlpha and math.exp((logAlphaTensor :: any)._storage[1]) or alpha
+	end
 	function Agent:parameters()
 		local params = {}
-		for _, p in ipairs(actor:parameters()) do table.insert(params, p) end
-		for _, p in ipairs(critic1:parameters()) do table.insert(params, p) end
-		for _, p in ipairs(critic2:parameters()) do table.insert(params, p) end
+		for _, p in ipairs(actor:parameters()) do
+			table.insert(params, p)
+		end
+		for _, p in ipairs(critic1:parameters()) do
+			table.insert(params, p)
+		end
+		for _, p in ipairs(critic2:parameters()) do
+			table.insert(params, p)
+		end
 		return params
 	end
 
