@@ -1,4 +1,5 @@
 --!optimize 2
+--!native
 local Tensor = require("../Tensor")
 local Types = require("../Types")
 local Math = {}
@@ -13,6 +14,9 @@ end
 
 -- Element-wise binary ops
 
+--@param A Tensor
+--@param B Tensor
+--@return Tensor
 function Math.add(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	checkShapes(A, B, "add")
 	task.desynchronize()
@@ -23,6 +27,9 @@ function Math.add(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param B Tensor
+--@return Tensor
 function Math.sub(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	checkShapes(A, B, "sub")
 	task.desynchronize()
@@ -33,6 +40,9 @@ function Math.sub(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param B Tensor
+--@return Tensor
 function Math.mul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	checkShapes(A, B, "mul")
 	task.desynchronize()
@@ -43,6 +53,9 @@ function Math.mul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param B Tensor
+--@return Tensor
 function Math.div(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	checkShapes(A, B, "div")
 	task.desynchronize()
@@ -55,6 +68,9 @@ end
 
 -- Scalar ops
 
+--@param A Tensor
+--@param s Tensor
+--@return Tensor
 function Math.scalarAdd(A: Types.Tensor, s: number): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -64,6 +80,9 @@ function Math.scalarAdd(A: Types.Tensor, s: number): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param s Tensor
+--@return Tensor
 function Math.scalarSub(A: Types.Tensor, s: number): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -73,6 +92,9 @@ function Math.scalarSub(A: Types.Tensor, s: number): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param s Tensor
+--@return Tensor
 function Math.scalarMul(A: Types.Tensor, s: number): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -82,6 +104,9 @@ function Math.scalarMul(A: Types.Tensor, s: number): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param s Tensor
+--@return Tensor
 function Math.scalarDiv(A: Types.Tensor, s: number): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -93,6 +118,8 @@ end
 
 -- Unary ops
 
+--@param A Tensor
+--@return Tensor
 function Math.neg(A: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -102,6 +129,8 @@ function Math.neg(A: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@return Tensor
 function Math.abs(A: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -111,6 +140,8 @@ function Math.abs(A: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@return Tensor
 function Math.exp(A: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -120,6 +151,8 @@ function Math.exp(A: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@return Tensor
 function Math.log(A: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -129,6 +162,8 @@ function Math.log(A: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@return Tensor
 function Math.sqrt(A: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -138,6 +173,9 @@ function Math.sqrt(A: Types.Tensor): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param exp number
+--@return Tensor
 function Math.pow(A: Types.Tensor, exp: number): Types.Tensor
 	task.desynchronize()
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
@@ -147,6 +185,10 @@ function Math.pow(A: Types.Tensor, exp: number): Types.Tensor
 	return C
 end
 
+--@param A Tensor
+--@param min number
+--@param max number
+--@return Tensor
 function Math.clamp(A: Types.Tensor, min: number, max: number): Types.Tensor
 	local C = Tensor.empty(A._shape, A._dtype, A._requiresGrad)
 	local as, cs = A._storage, C._storage
@@ -156,6 +198,8 @@ end
 
 -- Reductions
 
+--@param A Tensor
+--@return number
 function Math.sum(A: Types.Tensor): number
 	task.desynchronize()
 	local as = A._storage
@@ -165,10 +209,14 @@ function Math.sum(A: Types.Tensor): number
 	return acc
 end
 
+--@param A Tensor
+--@return number
 function Math.mean(A: Types.Tensor): number
 	return Math.sum(A) / #A._storage
 end
 
+--@param A Tensor
+--@return number
 function Math.max(A: Types.Tensor): number
 	local as = A._storage
 	local acc = as[1]
@@ -178,6 +226,8 @@ function Math.max(A: Types.Tensor): number
 	return acc
 end
 
+--@param A Tensor
+--@return number
 function Math.min(A: Types.Tensor): number
 	local as = A._storage
 	local acc = as[1]
