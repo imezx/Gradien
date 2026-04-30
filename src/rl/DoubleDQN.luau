@@ -148,6 +148,8 @@ return function(cfg)
 	end
 
 	return {
+		optimizer = opt,
+
 		getPolicy = function(_)
 			return policy
 		end,

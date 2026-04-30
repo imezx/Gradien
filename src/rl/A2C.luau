@@ -156,6 +156,10 @@ return function(cfg)
 
 	local Agent = {}
 
+    Agent.optimizer = policyOpt
+    Agent.policyOptimizer = policyOpt
+    Agent.valueOptimizer = valueOpt
+
 	--@param state {D,1}
 	--@return number
 	function Agent:act(state)

@@ -271,6 +271,10 @@ return function(cfg)
 
 	local Agent = {}
 
+    Agent.optimizer = actorOpt
+    Agent.actorOptimizer = actorOpt
+    Agent.criticOptimizer = criticOpt
+	
 	function Agent:act(state: Types.Tensor, evaluate: boolean?)
 		local out = actor:forward(state) -- {2*aDim, 1}
 		local result = table.create(aDim, 0.0)

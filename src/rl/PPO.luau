@@ -229,6 +229,10 @@ return function(cfg)
 
 	local Agent = {}
 
+    Agent.optimizer = policyOpt
+    Agent.policyOptimizer = policyOpt
+    Agent.valueOptimizer = valueOpt
+
 	function Agent:getPolicy()
 		return policy
 	end

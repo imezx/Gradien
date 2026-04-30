@@ -185,6 +185,10 @@ return function(cfg)
 
 	local Agent = {}
 
+    Agent.optimizer = actorOpt
+    Agent.actorOptimizer = actorOpt
+    Agent.criticOptimizer = criticOpt
+	
 	function Agent:act(state, evaluate)
 		local a = actor:forward(state)
 		local out = table.create(aDim, 0.0)
