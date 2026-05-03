@@ -10,8 +10,8 @@ local assert = Util.Assert
 -- LayerNorm across features for each column (shape {D,B}).
 return function(D: number, eps: number?): Types.Module<Types.Tensor, Types.Tensor>
 	eps = eps or 1e-5
-	local gamma = Tensor.fromArray(table.create(D, 1), { D, 1 }, "f64", true)
-	local beta = Tensor.zeros({ D, 1 }, "f64", true)
+	local gamma = Tensor.fromArray(table.create(D, 1), { D, 1 }, true)
+	local beta = Tensor.zeros({ D, 1 }, true)
 	local self
 	self = {
 		forward = function(_, x: Types.Tensor): Types.Tensor
@@ -19,7 +19,7 @@ return function(D: number, eps: number?): Types.Module<Types.Tensor, Types.Tenso
 			assert(D_ == D, "LayerNorm D mismatch")
 			task.desynchronize()
 			local mu = Reduce.meanCols(x)
-			local xc = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local xc = Tensor.zeros(x._shape, x._requiresGrad)
 			for j = 1, B do
 				local m = mu._storage[j]
 				for i = 1, D do
@@ -37,14 +37,14 @@ return function(D: number, eps: number?): Types.Module<Types.Tensor, Types.Tenso
 				return sq
 			end)())
 			task.desynchronize()
-			local norm = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local norm = Tensor.zeros(x._shape, x._requiresGrad)
 			for j = 1, B do
 				local inv = 1 / math.sqrt(var._storage[j] + (eps :: number))
 				for i = 1, D do
 					norm._storage[(i - 1) * B + j] = xc._storage[(i - 1) * B + j] * inv
 				end
 			end
-			local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local y = Tensor.zeros(x._shape, x._requiresGrad)
 			for j = 1, B do
 				for i = 1, D do
 					local idx = (i - 1) * B + j

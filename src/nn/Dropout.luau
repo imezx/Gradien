@@ -21,7 +21,7 @@ return function(p: number?, training: boolean?, rng: Random?): Types.Module<Type
 				return x
 			end
 			task.desynchronize()
-			local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local y = Tensor.zeros(x._shape, x._requiresGrad)
 			local mask = table.create(#x._storage, 0)
 			for i = 1, #x._storage do
 				local m = (rng:NextNumber(0, 1) >= drop) and 1 or 0

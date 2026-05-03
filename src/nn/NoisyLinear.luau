@@ -7,7 +7,7 @@ return function(inF: number, outF: number, sigma: number?, rng: Random?): Types.
 	sigma = sigma or 0.5
 	rng = rng or Random.new()
 	local base = Base(inF, outF)
-	local bsigma = Tensor.zeros({ outF, 1 }, "f64", true)
+	local bsigma = Tensor.zeros({ outF, 1 }, true)
 	local function resample()
 		task.desynchronize()
 		for i = 1, #bsigma._storage do

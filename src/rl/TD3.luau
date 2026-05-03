@@ -93,16 +93,12 @@ return function(cfg)
 		local cap = capacity
 		local rSize, rHead = 0, 1
 		local rS, rA, rR, rNS, rD = {}, {}, {}, {}, {}
-		local rDtype
 
 		replay = {
 			push = function(_, t)
-				if not rDtype then
-					rDtype = t.state._dtype
-				end
 				local i = rHead
-				rS[i] = Buffer.writeDenseArray(t.state._storage, rDtype, rS[i])
-				rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rDtype, rNS[i])
+				rS[i] = Buffer.writeDenseArray(t.state._storage, rS[i])
+				rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rNS[i])
 				rA[i] = type(t.action) == "table" and t.action or { t.action }
 				rR[i], rD[i] = t.reward, t.done and true or false
 				rHead = (rHead % cap) + 1
@@ -114,16 +110,15 @@ return function(cfg)
 				return rSize >= n
 			end,
 			sample = function(_, n)
-				local dtype = rDtype or "f64"
-				local S = Tensor.zeros({ sDim, n }, dtype, false)
-				local NS = Tensor.zeros({ sDim, n }, dtype, false)
-				local A = Tensor.zeros({ aDim, n }, dtype, false)
+				local S = Tensor.zeros({ sDim, n }, false)
+				local NS = Tensor.zeros({ sDim, n }, false)
+				local A = Tensor.zeros({ aDim, n }, false)
 				local R, D = table.create(n, 0.0), table.create(n, false)
 				task.desynchronize()
 				for j = 1, n do
 					local i = math.random(1, rSize)
-					Buffer.copyDenseToColumn(rS[i], dtype, S._storage, j, n, sDim)
-					Buffer.copyDenseToColumn(rNS[i], dtype, NS._storage, j, n, sDim)
+					Buffer.copyDenseToColumn(rS[i], S._storage, j, n, sDim)
+					Buffer.copyDenseToColumn(rNS[i], NS._storage, j, n, sDim)
 					local act = rA[i]
 					for d = 1, aDim do
 						A._storage[(d - 1) * n + j] = act[d] or 0
@@ -138,7 +133,7 @@ return function(cfg)
 
 	local function concat(state, action)
 		local B = state._shape[2]
-		local sa = Tensor.zeros({ sDim + aDim, B }, state._dtype, state._requiresGrad or action._requiresGrad)
+		local sa = Tensor.zeros({ sDim + aDim, B }, state._requiresGrad or action._requiresGrad)
 		task.desynchronize()
 		for d = 1, sDim do
 			local base = (d - 1) * B
@@ -231,7 +226,7 @@ return function(cfg)
 		local Q1next = critic1Target:forward(nsA)
 		local Q2next = critic2Target:forward(nsA)
 
-		local targetQ = Tensor.zeros({ 1, B }, S._dtype, false)
+		local targetQ = Tensor.zeros({ 1, B }, false)
 		task.desynchronize()
 		for j = 1, B do
 			local qmin = math.min(Q1next._storage[j], Q2next._storage[j])
@@ -256,7 +251,7 @@ return function(cfg)
 			local muA = actor:forward(S)
 			local smuA = concat(S, muA)
 			local Qval = critic1:forward(smuA)
-			local gA = Tensor.zeros({ 1, B }, S._dtype, false)
+			local gA = Tensor.zeros({ 1, B }, false)
 			task.desynchronize()
 			for j = 1, B do
 				gA._storage[j] = -1 / B

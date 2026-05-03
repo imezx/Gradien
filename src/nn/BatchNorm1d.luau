@@ -14,8 +14,8 @@ local assert = Util.Assert
 return function(D: number, eps: number?, momentum: number?): Types.Module<Types.Tensor, Types.Tensor>
 	eps = eps or 1e-5
 	momentum = momentum or 0.1
-	local gamma = Tensor.fromArray(table.create(D, 1), { D, 1 }, "f64", true)
-	local beta = Tensor.zeros({ D, 1 }, "f64", true)
+	local gamma = Tensor.fromArray(table.create(D, 1), { D, 1 }, true)
+	local beta = Tensor.zeros({ D, 1 }, true)
 	local runningMean = Tensor.zeros({ D, 1 })
 	local runningVar = Tensor.fromArray(table.create(D, 1), { D, 1 })
 	return {
@@ -26,7 +26,7 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 		forward = function(self, x: Types.Tensor): Types.Tensor
 			local D_, B = x._shape[1], x._shape[2]
 			assert(D_ == D, "BN1d D mismatch")
-			local xc = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local xc = Tensor.zeros(x._shape, x._requiresGrad)
 			local meanUsed: Types.Tensor
 			local varUsed: Types.Tensor
 			if self._train then
@@ -74,7 +74,7 @@ return function(D: number, eps: number?, momentum: number?): Types.Module<Types.
 				task.synchronize()
 			end
 			local inv: Types.Tensor = Tensor.zeros({ D, 1 })
-			local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local y = Tensor.zeros(x._shape, x._requiresGrad)
 			task.desynchronize()
 			for i = 1, D do
 				local invVal = 1 / math.sqrt(varUsed._storage[i] + (eps :: number))

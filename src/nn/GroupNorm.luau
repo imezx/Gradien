@@ -10,8 +10,8 @@ return function(num_groups: number, num_channels: number, eps: number?): Types.M
 	eps = eps or 1e-5
 	assert(num_channels % num_groups == 0, "GroupNorm: num_channels must be divisible by num_groups")
 
-	local gamma = Tensor.ones({ num_channels, 1 }, "f64", true)
-	local beta = Tensor.zeros({ num_channels, 1 }, "f64", true)
+	local gamma = Tensor.ones({ num_channels, 1 }, true)
+	local beta = Tensor.zeros({ num_channels, 1 }, true)
 
 	local self
 	self = {
@@ -60,7 +60,7 @@ return function(num_groups: number, num_channels: number, eps: number?): Types.M
 			for k = G * B + 1, G * B * 2 do
 				stats[k] = math.sqrt(stats[k] * inv_size + eps)
 			end
-			local y = Tensor.zeros(shape, x._dtype, x._requiresGrad)
+			local y = Tensor.zeros(shape, x._requiresGrad)
 			local ys = y._storage
 			local gs = gamma._storage
 			local bs = beta._storage
@@ -83,14 +83,14 @@ return function(num_groups: number, num_channels: number, eps: number?): Types.M
 			return Tape.makeNode(y, { x, gamma, beta }, function(gy: Types.Tensor)
 				if x._requiresGrad then
 					if not x._grad then
-						x._grad = Tensor.zeros(shape, x._dtype, false)
+						x._grad = Tensor.zeros(shape, false)
 					end
 				end
 				if gamma._requiresGrad and not gamma._grad then
-					gamma._grad = Tensor.zeros({ C, 1 }, "f64", false)
+					gamma._grad = Tensor.zeros({ C, 1 }, false)
 				end
 				if beta._requiresGrad and not beta._grad then
-					beta._grad = Tensor.zeros({ C, 1 }, "f64", false)
+					beta._grad = Tensor.zeros({ C, 1 }, false)
 				end
 				task.desynchronize()
 				local gys = gy._storage

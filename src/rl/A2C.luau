@@ -49,7 +49,7 @@ return function(cfg)
 		local s0 = S_buf[1]
 		local sd = s0._shape[1]
 		local B = T
-		local S = Tensor.zeros({ sd, B }, s0._dtype, true)
+		local S = Tensor.zeros({ sd, B }, true)
 
 		task.desynchronize()
 		for j = 1, B do
@@ -91,7 +91,7 @@ return function(cfg)
 		-- critic update: V(s) -> returns
 		local V = value:forward(S) -- {1,B}
 		local G = computeReturns()
-		local target = Tensor.zeros({ 1, B }, V._dtype, false)
+		local target = Tensor.zeros({ 1, B }, false)
 
 		task.desynchronize()
 		for j = 1, B do
@@ -118,7 +118,7 @@ return function(cfg)
 		local logits = policy:forward(S) -- {A,B}
 		local C = logits._shape[1]
 		local P = Softmax.forward(logits)
-		local grad = Tensor.zeros(logits._shape, logits._dtype, false)
+		local grad = Tensor.zeros(logits._shape, false)
 
 		local lossSum = 0.0
 		task.desynchronize()
@@ -159,6 +159,7 @@ return function(cfg)
     Agent.optimizer = policyOpt
     Agent.policyOptimizer = policyOpt
     Agent.valueOptimizer = valueOpt
+	Agent.policy = policy
 
 	--@param state {D,1}
 	--@return number

@@ -15,10 +15,10 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 			local gx = Wx:forward(x) -- {3H,B}
 			local gh = Wh:forward(h) -- {3H,B}
 			local B = x._shape[2]
-			local z = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
-			local r = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
-			local n = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
-			local y = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
+			local z = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
+			local r = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
+			local n = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
+			local y = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
 			for i = 1, hidF do
 				local zi = i -- z rows
 				local ri = hidF + i -- r rows
@@ -43,13 +43,13 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 			return Tape.makeNode(y, { gx, gh, h }, function(gy: Types.Tensor)
 				local B = y._shape[2]
 				if gx._requiresGrad then
-					gx._grad = gx._grad or Tensor.zeros(gx._shape, gx._dtype, false)
+					gx._grad = gx._grad or Tensor.zeros(gx._shape, false)
 				end
 				if gh._requiresGrad then
-					gh._grad = gh._grad or Tensor.zeros(gh._shape, gh._dtype, false)
+					gh._grad = gh._grad or Tensor.zeros(gh._shape, false)
 				end
 				if h._requiresGrad then
-					h._grad = h._grad or Tensor.zeros(h._shape, h._dtype, false)
+					h._grad = h._grad or Tensor.zeros(h._shape, false)
 				end
 				task.desynchronize()
 				for i = 1, hidF do
@@ -69,7 +69,7 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 						local d_n = gyv * (1 - zv)
 						local d_z = gyv * (h._storage[hb] - nv)
 						if h._requiresGrad then
-							h._grad._storage[hb] += gyv * zv
+							(h._grad :: Types.Tensor)._storage[hb] += gyv * zv
 						end
 						-- n = tanh(gx_n + r * gh_n)
 						local dnpre = d_n * (1 - nv * nv)

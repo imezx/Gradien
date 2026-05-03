@@ -93,7 +93,7 @@ function Utils.addTensors(a: Types.Tensor, b: Types.Tensor): Types.Tensor
 		assert(a._shape[i] == b._shape[i], "addTensors: shape mismatch")
 	end
 	local requiresGrad = (a._requiresGrad or b._requiresGrad) == true
-	local out = Tensor.zeros(a._shape, a._dtype, requiresGrad)
+	local out = Tensor.zeros(a._shape, requiresGrad)
 	task.desynchronize()
 	for i = 1, #a._storage do
 		out._storage[i] = a._storage[i] + b._storage[i]

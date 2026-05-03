@@ -42,7 +42,7 @@ local function stableSoftmax(logits: Types.Tensor, out: Types.Tensor)
 end
 
 function SoftmaxOps.forward(logits: Types.Tensor): Types.Tensor
-	local P = Tensor.zeros(logits._shape, logits._dtype, logits._requiresGrad)
+	local P = Tensor.zeros(logits._shape, logits._requiresGrad)
 	stableSoftmax(logits, P)
 	if not logits._requiresGrad then
 		return P
@@ -52,7 +52,7 @@ function SoftmaxOps.forward(logits: Types.Tensor): Types.Tensor
 			return
 		end
 		if not logits._grad then
-			logits._grad = Tensor.zeros(logits._shape, logits._dtype, false)
+			logits._grad = Tensor.zeros(logits._shape, false)
 		end
 		task.desynchronize()
 		local grads = logits._grad._storage

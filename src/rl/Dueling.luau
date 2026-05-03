@@ -5,7 +5,7 @@ local Tape = require("../autograd/Tape")
 
 return function(V, A)
 	local ADim, B = A._shape[1], A._shape[2]
-	local Q = Tensor.zeros({ ADim, B }, A._dtype, V._requiresGrad or A._requiresGrad)
+	local Q = Tensor.zeros({ ADim, B }, V._requiresGrad or A._requiresGrad)
 	task.desynchronize()
 	for j = 1, B do
 		local meanA = 0

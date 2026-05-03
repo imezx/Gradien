@@ -6,7 +6,7 @@ local Types = require("../Types")
 
 local function ensureGrad(t: Types.Tensor): Types.Tensor?
 	if not t._grad then
-		t._grad = Tensor.zeros(t._shape, t._dtype, false)
+		t._grad = Tensor.zeros(t._shape, false)
 	end
 	return t._grad
 end
@@ -16,8 +16,8 @@ return function(
 	outF: number,
 	init: ((number, number) -> number)?
 ): Types.Module<Types.Tensor, Types.Tensor>
-	local W = Tensor.zeros({ outF, inF }, "f64", true)
-	local b = Tensor.zeros({ outF, 1 }, "f64", true)
+	local W = Tensor.zeros({ outF, inF }, true)
+	local b = Tensor.zeros({ outF, 1 }, true)
 	if type(init) == "function" then
 		task.desynchronize()
 		local store = W._storage
@@ -40,7 +40,7 @@ return function(
 			if K ~= K2 then
 				error("Linear: input shape mismatch")
 			end
-			local out = Tensor.zeros({ M, N }, W._dtype, W._requiresGrad or b._requiresGrad or x._requiresGrad)
+			local out = Tensor.zeros({ M, N }, W._requiresGrad or b._requiresGrad or x._requiresGrad)
 			task.desynchronize()
 			local W_store = W._storage
 			local x_store = x._storage

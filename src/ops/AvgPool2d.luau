@@ -8,7 +8,7 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 	local C, H, W, B = X._shape[1], X._shape[2], X._shape[3], X._shape[4]
 	local Ho = math.floor((H - KH) / stride) + 1
 	local Wo = math.floor((W - KW) / stride) + 1
-	local Y = Tensor.zeros({ C, Ho, Wo, B }, X._dtype, X._requiresGrad)
+	local Y = Tensor.zeros({ C, Ho, Wo, B }, X._requiresGrad)
 	task.desynchronize()
 	local inputStorage = X._storage
 	local outputStorage = Y._storage
@@ -45,7 +45,7 @@ return function(X: Types.Tensor, KH: number, KW: number, stride: number): Types.
 	task.synchronize()
 	return Tape.makeNode(Y, { X }, function(gy: Types.Tensor)
 		if X._requiresGrad then
-			X._grad = X._grad or Tensor.zeros(X._shape, X._dtype, false)
+			X._grad = X._grad or Tensor.zeros(X._shape, false)
 			task.desynchronize()
 			local scale = 1 / (KH * KW)
 			local xGrad = X._grad :: Types.Tensor

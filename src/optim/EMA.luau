@@ -19,7 +19,7 @@ local function apply(self, params)
 	self.backup = {}
 	for i = 1, #params do
 		local t = params[i]
-		local b = Tensor.zeros(t._shape, t._dtype, false)
+		local b = Tensor.zeros(t._shape, false)
 		for k = 1, #t._storage do
 			b._storage[k] = t._storage[k]
 			t._storage[k] = self.shadow[i]._storage[k]
@@ -45,7 +45,7 @@ local function new(params, decay: number?)
 	local shadow = {}
 	for i = 1, #params do
 		local t = params[i]
-		local buf = Tensor.zeros(t._shape, t._dtype, false)
+		local buf = Tensor.zeros(t._shape, false)
 		for k = 1, #t._storage do
 			buf._storage[k] = t._storage[k]
 		end

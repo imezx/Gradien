@@ -6,7 +6,7 @@ return function(X: Types.Tensor, Y: Types.Tensor): Types.Dataset
 	local D, N = X._shape[1], X._shape[2]
 	local function colSlice(startIdx: number, endIdx: number): (Types.Tensor, Types.Tensor)
 		local B = endIdx - startIdx + 1
-		local XB = Tensor.zeros({ D, B }, X._dtype, X._requiresGrad)
+		local XB = Tensor.zeros({ D, B }, X._requiresGrad)
 		for d = 1, D do
 			local base = (d - 1) * N
 			for b = 1, B do
@@ -21,7 +21,7 @@ return function(X: Types.Tensor, Y: Types.Tensor): Types.Dataset
 	end
 	local function colGather(indices: { number }): (Types.Tensor, Types.Tensor)
 		local B = #indices
-		local XB = Tensor.zeros({ D, B }, X._dtype, X._requiresGrad)
+		local XB = Tensor.zeros({ D, B }, X._requiresGrad)
 		for d = 1, D do
 			local base = (d - 1) * N
 			for b = 1, B do

@@ -14,7 +14,7 @@ return function(): Types.Module<Types.Tensor, Types.Tensor>
 			end
 			if #shape == 4 then
 				local C, H, W, B = shape[1], shape[2], shape[3], shape[4]
-				local out = Tensor.zeros({ C * H * W, B }, x._dtype, x._requiresGrad)
+				local out = Tensor.zeros({ C * H * W, B }, x._requiresGrad)
 				task.desynchronize()
 				for c = 1, C do
 					for i = 1, H do
@@ -33,7 +33,7 @@ return function(): Types.Module<Types.Tensor, Types.Tensor>
 				end
 				return Tape.makeNode(out, { x }, function(gy: Types.Tensor)
 					if x._requiresGrad then
-						x._grad = x._grad or Tensor.zeros(x._shape, x._dtype, false)
+						x._grad = x._grad or Tensor.zeros(x._shape, false)
 						task.desynchronize()
 						for c = 1, C do
 							for i = 1, H do

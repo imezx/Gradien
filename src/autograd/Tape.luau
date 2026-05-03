@@ -36,7 +36,7 @@ end
 --@param x @Tensor
 function Tape.relu(x: Types.Tensor): Types.Tensor
 	task.desynchronize()
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	local y = Tensor.zeros(x._shape, x._requiresGrad)
 	for i = 1, #x._storage do
 		local v = x._storage[i]
 		y._storage[i] = (v > 0) and v or 0
@@ -46,7 +46,7 @@ function Tape.relu(x: Types.Tensor): Types.Tensor
 		if x._requiresGrad then
 			task.desynchronize()
 			if not x._grad then
-				x._grad = Tensor.zeros(x._shape, x._dtype)
+				x._grad = Tensor.zeros(x._shape)
 			end
 			if x._grad then
 				for i = 1, #x._grad._storage do
@@ -69,7 +69,7 @@ function Tape.matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 		local _, N = B._shape[1], B._shape[2]
 		if A._requiresGrad then
 			if not A._grad then
-				A._grad = Tensor.zeros({ M, K }, A._dtype)
+				A._grad = Tensor.zeros({ M, K })
 			end
 			local BT
 			Tape.noGrad(function()
@@ -86,7 +86,7 @@ function Tape.matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 		end
 		if B._requiresGrad then
 			if not B._grad then
-				B._grad = Tensor.zeros({ K, N }, B._dtype)
+				B._grad = Tensor.zeros({ K, N })
 			end
 			local AT
 			Tape.noGrad(function()
@@ -131,7 +131,7 @@ function Tape.backwardFrom(y: Types.Tensor, grad: Types.Tensor)
 		if node._requiresGrad then
 			local g = node._grad
 			if not g then
-				g = Tensor.zeros(node._shape, node._dtype)
+				g = Tensor.zeros(node._shape)
 				node._grad = g
 			end
 			if node._backprop then

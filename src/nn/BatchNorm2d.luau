@@ -9,8 +9,8 @@ local assert = Util.Assert
 --@param C number
 --@return table
 return function(C: number): Types.Module<Types.Tensor, Types.Tensor>
-	local gamma = Tensor.fromArray(table.create(C, 1), { C, 1 }, "f64", true)
-	local beta = Tensor.zeros({ C, 1 }, "f64", true)
+	local gamma = Tensor.fromArray(table.create(C, 1), { C, 1 }, true)
+	local beta = Tensor.zeros({ C, 1 }, true)
 	local self
 	self = {
 		forward = function(_, x: Types.Tensor): Types.Tensor
@@ -20,7 +20,6 @@ return function(C: number): Types.Module<Types.Tensor, Types.Tensor>
 			local M = H * W * B
 			local y = Tensor.zeros(
 				{ C, H, W, B },
-				x._dtype,
 				(x._requiresGrad or gamma._requiresGrad or beta._requiresGrad) == true
 			)
 			local mu = table.create(C, 0)
@@ -73,7 +72,7 @@ return function(C: number): Types.Module<Types.Tensor, Types.Tensor>
 				if beta._requiresGrad or gamma._requiresGrad then
 					task.desynchronize()
 					if beta._requiresGrad then
-						beta._grad = beta._grad or Tensor.zeros({ C, 1 }, beta._dtype, false)
+						beta._grad = beta._grad or Tensor.zeros({ C, 1 }, false)
 						for c = 1, C do
 							local acc = 0
 							for i = 1, H do
@@ -88,7 +87,7 @@ return function(C: number): Types.Module<Types.Tensor, Types.Tensor>
 						end
 					end
 					if gamma._requiresGrad then
-						gamma._grad = gamma._grad or Tensor.zeros({ C, 1 }, gamma._dtype, false)
+						gamma._grad = gamma._grad or Tensor.zeros({ C, 1 }, false)
 						for c = 1, C do
 							local acc = 0
 							local muc, ic = mu[c], inv[c]
@@ -109,7 +108,7 @@ return function(C: number): Types.Module<Types.Tensor, Types.Tensor>
 				end
 				-- dX
 				if x._requiresGrad then
-					x._grad = x._grad or Tensor.zeros(x._shape, x._dtype, false)
+					x._grad = x._grad or Tensor.zeros(x._shape, false)
 					task.desynchronize()
 					for c = 1, C do
 						local muc, ic = mu[c], inv[c]
@@ -131,8 +130,8 @@ return function(C: number): Types.Module<Types.Tensor, Types.Tensor>
 								for b = 1, B do
 									local xi = (((c - 1) * H + (i - 1)) * W + (j - 1)) * B + b
 									local gyij = gy._storage[xi]
-									local term = (M * gyij - sumGy - ((x._storage[xi] - muc) * ic) * sumGyXhat) / M
-									x._grad._storage[xi] += g * ic * term
+									local term = (M * gyij - sumGy - ((x._storage[xi] - muc) * ic) * sumGyXhat) / M;
+									(x._grad :: Types.Tensor)._storage[xi] += g * ic * term
 								end
 							end
 						end

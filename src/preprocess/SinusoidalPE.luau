@@ -8,7 +8,7 @@ local Tensor = require("../Tensor")
 return function(x, T: number)
 	local D, BT = x._shape[1], x._shape[2]
 	local B = math.floor(BT / T)
-	local out = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	local out = Tensor.zeros(x._shape, x._requiresGrad)
 	task.desynchronize()
 	local pe = {}
 	for pos = 1, T do

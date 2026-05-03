@@ -15,18 +15,16 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 			local B = x._shape[2]
 			local gx = Wx:forward(x) -- {4H,B}
 			local gh = Wh:forward(h) -- {4H,B}
-			local i = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
-			local f = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
-			local g = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
-			local o = Tensor.zeros({ hidF, B }, gx._dtype, gx._requiresGrad or gh._requiresGrad)
+			local i = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
+			local f = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
+			local g = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
+			local o = Tensor.zeros({ hidF, B }, gx._requiresGrad or gh._requiresGrad)
 			local cNew = Tensor.zeros(
 				{ hidF, B },
-				gx._dtype,
 				(gx._requiresGrad or gh._requiresGrad or (c and c._requiresGrad)) == true
 			)
 			local hNew = Tensor.zeros(
 				{ hidF, B },
-				gx._dtype,
 				(gx._requiresGrad or gh._requiresGrad or (c and c._requiresGrad)) == true
 			)
 			for j = 1, hidF do
@@ -62,13 +60,13 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 			local hNode = Tape.makeNode(hNew, { gx, gh, c }, function(gyh)
 				local B = hNew._shape[2]
 				if gx._requiresGrad then
-					gx._grad = gx._grad or Tensor.zeros(gx._shape, gx._dtype, false)
+					gx._grad = gx._grad or Tensor.zeros(gx._shape, false)
 				end
 				if gh._requiresGrad then
-					gh._grad = gh._grad or Tensor.zeros(gh._shape, gh._dtype, false)
+					gh._grad = gh._grad or Tensor.zeros(gh._shape, false)
 				end
 				if c._requiresGrad then
-					c._grad = c._grad or Tensor.zeros(c._shape, c._dtype, false)
+					c._grad = c._grad or Tensor.zeros(c._shape, false)
 				end
 				task.desynchronize()
 				for j = 1, hidF do
@@ -115,7 +113,7 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 								gh._grad._storage[fb] += dpre_f
 								gh._grad._storage[gb] += dpre_g
 							end
-							c._grad._storage[cb] += dct * f._storage[fb]
+							(c._grad :: Types.Tensor)._storage[cb] += dct * f._storage[fb]
 						end
 					end
 				end
@@ -125,13 +123,13 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 			local cNode = Tape.makeNode(cNew, { gx, gh, c }, function(gyc)
 				local B = cNew._shape[2]
 				if gx._requiresGrad then
-					gx._grad = gx._grad or Tensor.zeros(gx._shape, gx._dtype, false)
+					gx._grad = gx._grad or Tensor.zeros(gx._shape, false)
 				end
 				if gh._requiresGrad then
-					gh._grad = gh._grad or Tensor.zeros(gh._shape, gh._dtype, false)
+					gh._grad = gh._grad or Tensor.zeros(gh._shape, false)
 				end
 				if c._requiresGrad then
-					c._grad = c._grad or Tensor.zeros(c._shape, c._dtype, false)
+					c._grad = c._grad or Tensor.zeros(c._shape, false)
 				end
 				task.desynchronize()
 				for j = 1, hidF do
@@ -163,7 +161,7 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 							gh._grad._storage[gb] += dpre_g
 						end
 						if c._requiresGrad then
-							c._grad._storage[cb] += dct * f._storage[fb]
+							(c._grad :: Types.Tensor)._storage[cb] += dct * f._storage[fb]
 						end
 					end
 				end

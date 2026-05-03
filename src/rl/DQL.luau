@@ -137,15 +137,12 @@ return function(cfg)
 
 	return {
 		optimizer = opt,
-		
-		getPolicy = function(_)
-			return policy
-		end,
+		policy = policy,
+		target = target,
 
 		parameters = function(_)
 			return policy:parameters()
 		end,
-		
 		act = function(_, state, n)
 			local eps = epsAt(n or step)
 			if math.random() < eps then
@@ -157,7 +154,6 @@ return function(cfg)
 			task.synchronize()
 			return arg[1]
 		end,
-
 		observe = function(_, t)
 			if cfg.replay then
 				cfg.replay:push(t)
@@ -168,7 +164,6 @@ return function(cfg)
 				table.remove(onlineBuf, 1)
 			end
 		end,
-
 		trainStep = function(_)
 			if cfg.replay then
 				if not cfg.replay:canSample(batchSize) then
@@ -194,7 +189,6 @@ return function(cfg)
 			task.synchronize()
 			return tdUpdate(S, A, R, NS, D)
 		end,
-		
 		loadParameters = function(_, snapshot, strict: boolean?)
 			local fp = policy:parameters()
 			local n = #fp

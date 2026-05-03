@@ -55,16 +55,8 @@ function Util.apply(m: Types.Module, fn: (Types.Module) -> ())
 	end)
 end
 
-function Util.to(m: Types.Module, dtype: Types.DType)
-	applyRecursive(m, function(mm)
-		for _, p in mm:parameters() do
-			p._dtype = dtype
-		end
-	end)
-end
-
 function Util.shape(x: Types.Tensor): (number, number?)
-    return x._shape[1], x._shape[2]
+	return x._shape[1], x._shape[2]
 end
 
 Util.ModelStats = require("@self/ModelStats")

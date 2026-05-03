@@ -5,18 +5,6 @@
 --from Warp lib
 local DedicatedBuffer = {}
 
-local create = buffer.create
-local copy = buffer.copy
-local writei8 = buffer.writei8
-local writei16 = buffer.writei16
-local writei32 = buffer.writei32
-local writeu8 = buffer.writeu8
-local writeu16 = buffer.writeu16
-local writeu32 = buffer.writeu32
-local writef32 = buffer.writef32
-local writef64 = buffer.writef64
-local writestring = buffer.writestring
-
 local default: { [string]: number } = {
 	point = 0,
 	next = 0,
@@ -26,9 +14,9 @@ local default: { [string]: number } = {
 
 local function copyMethod(self: any, offset: number, b: buffer?, src: buffer?, srcOffset: number?, count: number?)
 	if not b then
-		copy(create(count or default.size), offset, src or self.buffer, srcOffset, count)
+		buffer.copy(buffer.create(count or default.size), offset, src or self.buffer, srcOffset, count)
 	else
-		copy(b, offset, src or self.buffer, srcOffset, count)
+		buffer.copy(b, offset, src or self.buffer, srcOffset, count)
 	end
 end
 
@@ -43,8 +31,8 @@ local function alloc(self: any, byte: number)
 			newSize = need
 		end
 
-		local newBuffer: buffer = create(newSize)
-		copy(newBuffer, 0, self.buffer, 0, self.next)
+		local newBuffer: buffer = buffer.create(newSize)
+		buffer.copy(newBuffer, 0, self.buffer, 0, self.next)
 		self.buffer = newBuffer
 		self.size = newSize
 	end
@@ -55,18 +43,18 @@ end
 
 local function build(self: any): buffer
 	local p: number = self.next > self.point and self.next or self.point
-	local buildBuffer: buffer = create(p)
+	local buildBuffer: buffer = buffer.create(p)
 
-	copy(buildBuffer, 0, self.buffer, 0, p)
+	buffer.copy(buildBuffer, 0, self.buffer, 0, p)
 	return buildBuffer
 end
 
 local function buildAndRemove(self: any): (buffer, any?)
 	local p: number = self.next > self.point and self.next or self.point
-	local buildBuffer: buffer = create(p)
+	local buildBuffer: buffer = buffer.create(p)
 	local ref = #self.ref > 0 and table.clone(self.ref) or nil
 
-	copy(buildBuffer, 0, self.buffer, 0, p)
+	buffer.copy(buildBuffer, 0, self.buffer, 0, p)
 
 	self:remove()
 	return buildBuffer, ref
@@ -77,7 +65,7 @@ local function wi8(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 1)
-	writei8(self.buffer, self.point, val)
+	buffer.writei8(self.buffer, self.point, val)
 end
 
 local function wi16(self: any, val: number, allocBytes: number?)
@@ -85,7 +73,7 @@ local function wi16(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 2)
-	writei16(self.buffer, self.point, val)
+	buffer.writei16(self.buffer, self.point, val)
 end
 
 local function wi32(self: any, val: number, allocBytes: number?)
@@ -93,7 +81,7 @@ local function wi32(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 4)
-	writei32(self.buffer, self.point, val)
+	buffer.writei32(self.buffer, self.point, val)
 end
 
 local function wu8(self: any, val: number, allocBytes: number?)
@@ -101,7 +89,7 @@ local function wu8(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 1)
-	writeu8(self.buffer, self.point, val)
+	buffer.writeu8(self.buffer, self.point, val)
 end
 
 local function wu16(self: any, val: number, allocBytes: number?)
@@ -109,7 +97,7 @@ local function wu16(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 2)
-	writeu16(self.buffer, self.point, val)
+	buffer.writeu16(self.buffer, self.point, val)
 end
 
 local function wu32(self: any, val: number, allocBytes: number?)
@@ -117,7 +105,7 @@ local function wu32(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 4)
-	writeu32(self.buffer, self.point, val)
+	buffer.writeu32(self.buffer, self.point, val)
 end
 
 local function wf32(self: any, val: number, allocBytes: number?)
@@ -125,7 +113,7 @@ local function wf32(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 4)
-	writef32(self.buffer, self.point, val)
+	buffer.writef32(self.buffer, self.point, val)
 end
 
 local function wf64(self: any, val: number, allocBytes: number?)
@@ -133,7 +121,7 @@ local function wf64(self: any, val: number, allocBytes: number?)
 		return
 	end
 	self:alloc(allocBytes or 8)
-	writef64(self.buffer, self.point, val)
+	buffer.writef64(self.buffer, self.point, val)
 end
 
 local function wstring(self: any, val: string)
@@ -141,11 +129,11 @@ local function wstring(self: any, val: string)
 		return
 	end
 	self:alloc(#val)
-	writestring(self.buffer, self.point, val)
+	buffer.writestring(self.buffer, self.point, val)
 end
 
 local function wType(self: any, ref: number)
-	writeu8(self.buffer, self.point, ref)
+	buffer.writeu8(self.buffer, self.point, ref)
 	self.point += 1
 end
 
@@ -156,7 +144,7 @@ local function wRef(self: any, value: any)
 	table.insert(self.ref, value)
 	local index = #self.ref
 	self:alloc(2)
-	writeu16(self.buffer, self.point, index)
+	buffer.writeu16(self.buffer, self.point, index)
 end
 
 local function pack(self: any, data: any)
@@ -265,7 +253,7 @@ local function flush(self: any)
 	self.point = default.point
 	self.next = default.next
 	self.size = default.size
-	self.buffer = create(default.bufferSize)
+	self.buffer = buffer.create(default.bufferSize)
 	table.clear(self.ref)
 end
 
@@ -304,7 +292,7 @@ function DedicatedBuffer.new()
 		point = default.point,
 		next = default.next,
 		size = default.size,
-		buffer = create(default.bufferSize),
+		buffer = buffer.create(default.bufferSize),
 		ref = {},
 	}
 	for name, fn in methods do

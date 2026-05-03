@@ -16,7 +16,7 @@ return function(f: Types.Module<Types.Tensor, Types.Tensor>): Types.Module<Types
 			local requiresGrad = (y._requiresGrad or x._requiresGrad) == true
 
 			task.desynchronize()
-			local out = Tensor.zeros(y._shape, y._dtype, requiresGrad)
+			local out = Tensor.zeros(y._shape, requiresGrad)
 			for i = 1, #y._storage do
 				out._storage[i] = y._storage[i] + x._storage[i]
 			end

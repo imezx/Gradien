@@ -11,7 +11,7 @@ local Activations = require("../../nn/Activations")
 
 local function ensureGrad(t: Types.Tensor): Types.Tensor?
 	if not t._grad then
-		t._grad = Tensor.zeros(t._shape, t._dtype, false)
+		t._grad = Tensor.zeros(t._shape, false)
 	end
 	return t._grad
 end
@@ -26,7 +26,7 @@ local function depthwiseConv1d(x: Types.Tensor, weight: Types.Tensor): Types.Ten
 	end
 	local B, L, D = x._shape[1], x._shape[2], x._shape[3]
 	local K = weight._shape[3]
-	local y = Tensor.zeros({ B, L, D }, x._dtype, x._requiresGrad or weight._requiresGrad)
+	local y = Tensor.zeros({ B, L, D }, x._requiresGrad or weight._requiresGrad)
 	task.desynchronize()
 	local xs = x._storage
 	local ws = weight._storage
@@ -103,7 +103,7 @@ local function linear(x: Types.Tensor, weight: Types.Tensor, bias: Types.Tensor?
 	local wT = Tensor.transpose(weight, 1, 2)
 	local outFlat = BLAS.matmul(xFlat, wT)
 	if bias then
-		local outWithBias = Tensor.empty(outFlat._shape, outFlat._dtype, outFlat._requiresGrad or bias._requiresGrad)
+		local outWithBias = Tensor.empty(outFlat._shape, outFlat._requiresGrad or bias._requiresGrad)
 		local b_storage = bias._storage
 		local out_storage = outFlat._storage
 		local res_storage = outWithBias._storage
@@ -153,18 +153,18 @@ local function MambaBlock(dModel: number, dState: number?, dConv: number?, expan
 	expand = expand or 2
 	local dInner = dModel * (expand :: number)
 	local dtRank = math.ceil(dModel / 16)
-	local inProj = Tensor.empty({ dInner * 2, dModel }, "f64", true)
+	local inProj = Tensor.empty({ dInner * 2, dModel }, true)
 	Initializer.xavierUniform(inProj)
-	local convWeight = Tensor.empty({ dInner, 1, dConv :: number }, "f64", true)
+	local convWeight = Tensor.empty({ dInner, 1, dConv :: number }, true)
 	Initializer.kaimingUniform(convWeight)
-	local A_log = Tensor.empty({ dInner, dState :: number }, "f64", true)
+	local A_log = Tensor.empty({ dInner, dState :: number }, true)
 	Initializer.kaimingUniform(A_log)
-	local D = Tensor.ones({ dInner }, "f64", true)
-	local xProj = Tensor.empty({ dtRank + (dState :: number) * 2, dInner }, "f64", true)
-	local dtProj = Tensor.empty({ dInner, dtRank }, "f64", true)
+	local D = Tensor.ones({ dInner }, true)
+	local xProj = Tensor.empty({ dtRank + (dState :: number) * 2, dInner }, true)
+	local dtProj = Tensor.empty({ dInner, dtRank }, true)
 	Initializer.xavierUniform(xProj)
 	Initializer.xavierUniform(dtProj)
-	local outProj = Tensor.empty({ dModel, dInner }, "f64", true)
+	local outProj = Tensor.empty({ dModel, dInner }, true)
 	Initializer.xavierUniform(outProj)
 	return {
 		forward = function(_, u: Types.Tensor): Types.Tensor

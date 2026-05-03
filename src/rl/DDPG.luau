@@ -78,16 +78,12 @@ return function(cfg)
 		local cap = capacity
 		local rSize, rHead = 0, 1
 		local rS, rA, rR, rNS, rD = {}, {}, {}, {}, {}
-		local rDtype
 
 		local function rpush(t)
 			assert(t.state and t.nextState and t.action, "DDPG replay: state/action/nextState required")
-			if not rDtype then
-				rDtype = t.state._dtype
-			end
 			local i = rHead
-			rS[i] = Buffer.writeDenseArray(t.state._storage, rDtype, rS[i])
-			rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rDtype, rNS[i])
+			rS[i] = Buffer.writeDenseArray(t.state._storage, rS[i])
+			rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rNS[i])
 			-- store continuous action as a plain array
 			if type(t.action) == "table" then
 				rA[i] = t.action
@@ -107,17 +103,16 @@ return function(cfg)
 		end
 
 		local function rsample(n)
-			local dtype = rDtype or "f64"
-			local S = Tensor.zeros({ sDim, n }, dtype, false)
-			local NS = Tensor.zeros({ sDim, n }, dtype, false)
-			local A = Tensor.zeros({ aDim, n }, dtype, false)
+			local S = Tensor.zeros({ sDim, n }, false)
+			local NS = Tensor.zeros({ sDim, n }, false)
+			local A = Tensor.zeros({ aDim, n }, false)
 			local R = table.create(n, 0.0)
 			local D = table.create(n, false)
 			task.desynchronize()
 			for j = 1, n do
 				local i = math.random(1, rSize)
-				Buffer.copyDenseToColumn(rS[i], dtype, S._storage, j, n, sDim)
-				Buffer.copyDenseToColumn(rNS[i], dtype, NS._storage, j, n, sDim)
+				Buffer.copyDenseToColumn(rS[i], S._storage, j, n, sDim)
+				Buffer.copyDenseToColumn(rNS[i], NS._storage, j, n, sDim)
 				local act = rA[i]
 				for d = 1, aDim do
 					A._storage[(d - 1) * n + j] = act[d] or 0
@@ -134,7 +129,7 @@ return function(cfg)
 	-- concatenate state {sDim,B} and action {aDim,B} -> {sDim+aDim,B}
 	local function concat(state: Types.Tensor, action: Types.Tensor): Types.Tensor
 		local B = state._shape[2]
-		local sa = Tensor.zeros({ sDim + aDim, B }, state._dtype, state._requiresGrad or action._requiresGrad)
+		local sa = Tensor.zeros({ sDim + aDim, B }, state._requiresGrad or action._requiresGrad)
 		task.desynchronize()
 		for d = 1, sDim do
 			local base = (d - 1) * B
@@ -222,7 +217,7 @@ return function(cfg)
 		local nsA = concat(NS, nextA)
 		local Qnext = criticTarget:forward(nsA) -- {1, B}
 
-		local targetQ = Tensor.zeros({ 1, B }, S._dtype, false)
+		local targetQ = Tensor.zeros({ 1, B }, false)
 		task.desynchronize()
 		for j = 1, B do
 			local cont = D[j] and 0 or 1
@@ -244,7 +239,7 @@ return function(cfg)
 		local Qval = critic:forward(smuA) -- {1, B}
 
 		-- actor loss grad: -dQ/da * da/d(actor params)
-		local gActor = Tensor.zeros({ 1, B }, S._dtype, false)
+		local gActor = Tensor.zeros({ 1, B }, false)
 		task.desynchronize()
 		for j = 1, B do
 			gActor._storage[j] = -1 / B

@@ -1,7 +1,7 @@
 --[[
 Gradien (by @Eternity_Devs)
 A strictly-typed, optimized parallel-first ML & DL library for Roblox.
-Version 1.4.1
+Version 1.4.2
 ]]
 --!strict
 local Gradien = {}
@@ -16,7 +16,7 @@ Gradien.Types = require("@self/Types")
 Gradien.Util = require("@self/Util")
 Gradien.Tensor = require("@self/Tensor")
 Gradien.Debug = require("@self/Debug")
-Gradien.Tokenizers = require("@self/tokenizers")
+Gradien.Tokenizers = require("@self/Tokenizers")
 
 Gradien.Experimental = {
 	Models = {

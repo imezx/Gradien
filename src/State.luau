@@ -28,7 +28,7 @@ function State.dump(params: { Types.Tensor }): Types.Snapshot
 		for k = 1, #t._storage do
 			dat[k] = t._storage[k]
 		end
-		out[i] = { shape = shp, dtype = t._dtype or "f32", data = dat }
+		out[i] = { shape = shp, data = dat }
 	end
 	task.synchronize()
 	return out

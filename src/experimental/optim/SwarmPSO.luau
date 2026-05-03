@@ -59,17 +59,17 @@ return function(params: { Types.Tensor }, config: SwarmPSOConfig): Types.Optimiz
 		local velForParticle: { Types.Tensor } = {}
 		local pbestForParticle: { Types.Tensor } = {}
 		for _, param in ipairs(params) do
-			local pos = Tensor.zeros(param._shape, param._dtype, false)
+			local pos = Tensor.zeros(param._shapedtype, false)
 			copyTensorData(param, pos)
 
-			local vel = Tensor.zeros(param._shape, param._dtype, false)
+			local vel = Tensor.zeros(param._shapedtype, false)
 			task.desynchronize()
 			for j = 1, #vel._storage do
 				vel._storage[j] = (math.random() * 2 - 1) * 0.001
 			end
 			task.synchronize()
 
-			local pb = Tensor.zeros(param._shape, param._dtype, false)
+			local pb = Tensor.zeros(param._shapedtype, false)
 			copyTensorData(param, pb)
 
 			table.insert(posForParticle, pos)
@@ -82,7 +82,7 @@ return function(params: { Types.Tensor }, config: SwarmPSOConfig): Types.Optimiz
 		pbestScore[p] = math.huge
 	end
 	for _, param in ipairs(params) do
-		local gb = Tensor.zeros(param._shape, param._dtype, false)
+		local gb = Tensor.zeros(param._shapedtype, false)
 		copyTensorData(param, gb)
 		table.insert(gbest, gb)
 	end

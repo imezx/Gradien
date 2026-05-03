@@ -19,7 +19,6 @@ local function makeMatrixView(tensor: Types.Tensor, rows: number, cols: number):
 	return {
 		_storage = tensor._storage,
 		_shape = { rows, cols },
-		_dtype = tensor._dtype,
 		_requiresGrad = tensor._requiresGrad,
 		_parents = nil,
 		_backprop = nil,
@@ -35,7 +34,7 @@ end
 
 local function transposeMatrix(matrix: Types.Tensor): Types.Tensor
 	local rows, cols = matrix._shape[1], matrix._shape[2]
-	local out = Tensor.zeros({ cols, rows }, matrix._dtype, matrix._requiresGrad)
+	local out = Tensor.zeros({ cols, rows }, matrix._requiresGrad)
 	task.desynchronize()
 	local os, ms = out._storage, matrix._storage
 	for r = 1, rows do
@@ -60,7 +59,7 @@ local function im2col(
 	Wo: number
 )
 	local patch = C * KH * KW
-	local cols = Tensor.zeros({ patch, Ho * Wo * B }, X._dtype, false)
+	local cols = Tensor.zeros({ patch, Ho * Wo * B }, false)
 	local xs = X._storage
 	local cs = cols._storage
 	local HWd_B = H * Wd * B
@@ -102,11 +101,10 @@ local function col2im(
 	KH: number,
 	KW: number,
 	Ho: number,
-	Wo: number,
-	dtype: Types.DType
+	Wo: number
 ): Types.Tensor
 	local patch = C * KH * KW
-	local out = Tensor.zeros({ C, H, Wd, B }, dtype, false)
+	local out = Tensor.zeros({ C, H, Wd, B }, false)
 	local xs = out._storage
 	local cs = cols._storage
 	local HWd_B = H * Wd * B
@@ -170,7 +168,7 @@ return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 		local gyMat = makeMatrixView(gy, F, columns)
 		if W._requiresGrad then
 			if not W._grad then
-				W._grad = Tensor.zeros({ F, C, KH, KW }, W._dtype, false)
+				W._grad = Tensor.zeros({ F, C, KH, KW }, false)
 			end
 			local colsT = transposeMatrix(cols)
 			local dW = BLAS.matmul(gyMat, colsT)
@@ -180,11 +178,11 @@ return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 		end
 		if X._requiresGrad then
 			if not X._grad then
-				X._grad = Tensor.zeros({ C, H, Wd, B }, X._dtype, false)
+				X._grad = Tensor.zeros({ C, H, Wd, B }, false)
 			end
 			local weightT = transposeMatrix(weightView)
 			local dXcols = BLAS.matmul(weightT, gyMat)
-			local dX = col2im(dXcols, C, H, Wd, B, KH, KW, Ho, Wo, X._dtype)
+			local dX = col2im(dXcols, C, H, Wd, B, KH, KW, Ho, Wo)
 			local gradX = X._grad :: Types.Tensor
 			addInto(gradX, dX)
 		end

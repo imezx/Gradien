@@ -6,13 +6,6 @@ local Util = require("./Util")
 local Types = require("./Types")
 local Tape -- lazy-load
 
-local TensorMethods = {}
-local function attachMethods(t)
-	for name, fn in TensorMethods do
-		t[name] = fn
-	end
-end
-
 export type Tensor = Types.Tensor
 
 local sizeFromShape = Util.sizeFromShape
@@ -42,7 +35,6 @@ end
 local function newTensor(
 	storage: { number },
 	shape: { number },
-	dtype: Types.DType?,
 	requiresGrad: boolean?,
 	sizeOverride: number?
 ): Tensor
@@ -51,7 +43,6 @@ local function newTensor(
 	local t: Types.Tensor = {
 		_storage = storage,
 		_shape = shapeClone,
-		_dtype = dtype or "f64",
 		_requiresGrad = requiresGrad == true,
 		_size = sizeOverride or #storage,
 		_strides = strides,
@@ -59,7 +50,6 @@ local function newTensor(
 		_backprop = nil,
 		_grad = nil,
 	}
-	attachMethods(t :: any)
 	return t :: any
 end
 
@@ -90,7 +80,7 @@ local function contiguous(self: Tensor): Tensor
 		return self
 	end
 	local size = ensureSize(self)
-	local out = newTensor(self._storage, self._shape, self._dtype, self._requiresGrad, size)
+	local out = newTensor(self._storage, self._shape, self._requiresGrad, size)
 	return out
 end
 
@@ -103,33 +93,28 @@ local function ensureStrides(t: Types.Tensor): { number }
 	return strides
 end
 
-function Tensor.zeros(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Tensor
-	dtype = dtype or "f64"
+function Tensor.zeros(shape: { number }, requiresGrad: boolean?): Tensor
 	local n = sizeFromShape(shape)
-	return newTensor(table.create(n, 0), shape, dtype, requiresGrad, n)
+	return newTensor(table.create(n, 0), shape, requiresGrad, n)
 end
 
-function Tensor.ones(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Tensor
-	dtype = dtype or "f64"
+function Tensor.ones(shape: { number }, requiresGrad: boolean?): Tensor
 	local n = sizeFromShape(shape)
-	return newTensor(table.create(n, 1), shape, dtype, requiresGrad, n)
+	return newTensor(table.create(n, 1), shape, requiresGrad, n)
 end
 
-function Tensor.empty(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Tensor
-	dtype = dtype or "f64"
+function Tensor.empty(shape: { number }, requiresGrad: boolean?): Tensor
 	local n = sizeFromShape(shape)
-	return newTensor(table.create(n), shape, dtype, requiresGrad, n)
+	return newTensor(table.create(n), shape, requiresGrad, n)
 end
 
-function Tensor.fromArray(data: { number }, shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Tensor
+function Tensor.fromArray(data: { number }, shape: { number }, requiresGrad: boolean?): Tensor
 	local n = sizeFromShape(shape)
 	assert(#data == n, ("Tensor.fromArray: got %d elements, expected %d"):format(#data, n))
-	dtype = dtype or "f64"
-	return newTensor(table.clone(data), shape, dtype, requiresGrad, n)
+	return newTensor(table.clone(data), shape, requiresGrad, n)
 end
 
-function Tensor.randn(shape: { number }, dtype: Types.DType?, requiresGrad: boolean?): Tensor
-	dtype = dtype or "f64"
+function Tensor.randn(shape: { number }, requiresGrad: boolean?): Tensor
 	local n = sizeFromShape(shape)
 	local storage = table.create(n)
 	task.desynchronize()
@@ -146,13 +131,13 @@ function Tensor.randn(shape: { number }, dtype: Types.DType?, requiresGrad: bool
 		end
 	end
 	task.synchronize()
-	return newTensor(storage, shape, dtype, requiresGrad, n)
+	return newTensor(storage, shape, requiresGrad, n)
 end
 
 local function reshape(self: Tensor, newShape: { number }): Tensor
 	local size = ensureSize(self)
 	assert(sizeFromShape(newShape) == size, "reshape: element count mismatch")
-	local out = newTensor(self._storage, newShape, self._dtype, self._requiresGrad, size)
+	local out = newTensor(self._storage, newShape, self._requiresGrad, size)
 	if not self._requiresGrad then
 		return out
 	end
@@ -161,7 +146,7 @@ local function reshape(self: Tensor, newShape: { number }): Tensor
 	end
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if self._requiresGrad then
-			self._grad = self._grad or Tensor.zeros(self._shape, self._dtype, false)
+			self._grad = self._grad or Tensor.zeros(self._shape, false)
 			task.desynchronize()
 			local gs, ys = (self._grad :: Types.Tensor)._storage, gy._storage
 			for i = 1, #ys do
@@ -215,20 +200,19 @@ local function expand(self: Tensor, newShape: { number }): Tensor
 		end
 	end
 	task.synchronize()
-	local out = newTensor(outStorage, newShape, self._dtype, self._requiresGrad, outSize)
+	local out = newTensor(outStorage, newShape, self._requiresGrad, outSize)
 	if not self._requiresGrad then
 		return out
 	end
 	if not Tape then
 		Tape = require("./autograd/Tape") :: any
 	end
-	local dtype = self._dtype
 	local shapeCopy = table.clone(self._shape)
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if not self._requiresGrad then
 			return
 		end
-		self._grad = self._grad or Tensor.zeros(shapeCopy, dtype, false)
+		self._grad = self._grad or Tensor.zeros(shapeCopy, false)
 		task.desynchronize()
 		local gs = (self._grad :: Types.Tensor)._storage
 		local gys = gy._storage
@@ -308,7 +292,7 @@ local function slice(self: Tensor, dim: number, startIdx: number, endIdx: number
 	end
 	task.synchronize()
 
-	local out = newTensor(outStorage, outShape, self._dtype, self._requiresGrad, outSize)
+	local out = newTensor(outStorage, outShape, self._requiresGrad, outSize)
 	if not self._requiresGrad then
 		return out
 	end
@@ -317,12 +301,11 @@ local function slice(self: Tensor, dim: number, startIdx: number, endIdx: number
 	end
 	local shapeCopy = table.clone(shape)
 	local mapCopy = indexMap
-	local dtype = self._dtype
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if not self._requiresGrad then
 			return
 		end
-		self._grad = self._grad or Tensor.zeros(shapeCopy, dtype, false)
+		self._grad = self._grad or Tensor.zeros(shapeCopy, false)
 		task.desynchronize()
 		local gsrc = (self._grad :: Types.Tensor)._storage
 		local gys = gy._storage
@@ -390,7 +373,7 @@ local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 		end
 	end
 	task.synchronize()
-	local out = newTensor(dst, outShape, self._dtype, self._requiresGrad, outSize)
+	local out = newTensor(dst, outShape, self._requiresGrad, outSize)
 	if not self._requiresGrad then
 		return out
 	end
@@ -399,12 +382,11 @@ local function transpose(self: Tensor, dim1: number?, dim2: number?): Tensor
 	end
 	local shapeCopy = table.clone(shape)
 	local mapCopy = indexMap
-	local dtype = self._dtype
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if not self._requiresGrad then
 			return
 		end
-		self._grad = self._grad or Tensor.zeros(shapeCopy, dtype, false)
+		self._grad = self._grad or Tensor.zeros(shapeCopy, false)
 		task.desynchronize()
 		local gsrc = (self._grad :: Types.Tensor)._storage
 		local gys = gy._storage
@@ -437,7 +419,7 @@ local function sum(self: Tensor, dim: number?): Tensor
 		s += storage[i]
 	end
 	task.synchronize()
-	local out = newTensor({ s }, { 1 }, self._dtype, self._requiresGrad, 1)
+	local out = newTensor({ s }, { 1 }, self._requiresGrad, 1)
 	if not self._requiresGrad then
 		return out
 	end
@@ -446,7 +428,7 @@ local function sum(self: Tensor, dim: number?): Tensor
 	end
 	return Tape.makeNode(out, { self }, function(gy: Types.Tensor)
 		if self._requiresGrad then
-			self._grad = self._grad or Tensor.zeros(self._shape, self._dtype, false)
+			self._grad = self._grad or Tensor.zeros(self._shape, false)
 			local g = gy._storage[1]
 			task.desynchronize()
 			local gs = (self._grad :: Types.Tensor)._storage
@@ -459,7 +441,7 @@ local function sum(self: Tensor, dim: number?): Tensor
 end
 
 local function detach(self: Tensor): Tensor
-	return newTensor(self._storage, self._shape, self._dtype, false, ensureSize(self))
+	return newTensor(self._storage, self._shape, false, ensureSize(self))
 end
 
 local function noGrad(self: Tensor): ()
@@ -476,7 +458,7 @@ local function backward(self: Tensor, grad: Tensor?)
 	end
 	if not grad then
 		if self._size == 1 then
-			grad = Tensor.ones(self._shape, self._dtype, false)
+			grad = Tensor.ones(self._shape, false)
 		else
 			error("backward: grad must be provided for non-scalar tensors")
 		end
@@ -484,37 +466,16 @@ local function backward(self: Tensor, grad: Tensor?)
 	Tape.backwardFrom(self, grad)
 end
 
-TensorMethods.reshape = reshape
 Tensor.reshape = reshape
-
-TensorMethods.expand = expand
 Tensor.expand = expand
-
-TensorMethods.is_contiguous = is_contiguous
 Tensor.is_contiguous = is_contiguous
-
-TensorMethods.contiguous = contiguous
 Tensor.contiguous = contiguous
-
-TensorMethods.slice = slice
 Tensor.slice = slice
-
-TensorMethods.transpose = transpose
 Tensor.transpose = transpose
-
-TensorMethods.narrow = narrow
 Tensor.narrow = narrow
-
-TensorMethods.sum = sum
 Tensor.sum = sum
-
-TensorMethods.detach = detach
 Tensor.detach = detach
-
-TensorMethods.noGrad = noGrad
 Tensor.noGrad = noGrad
-
-TensorMethods.backward = backward
 Tensor.backward = backward
 
 return Tensor

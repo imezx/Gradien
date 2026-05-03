@@ -11,7 +11,7 @@ local assert = Util.Assert
 
 local function cosineSimilarity(u: Types.Tensor, v: Types.Tensor)
 	-- u, v: {D, B}
-	local dot = Tensor.zeros({ 1, u._shape[2] }, u._dtype, u._requiresGrad or v._requiresGrad)
+	local dot = Tensor.zeros({ 1, u._shape[2] }, u._requiresGrad or v._requiresGrad)
 	local B = u._shape[2]
 	local D = u._shape[1]
 	task.desynchronize()
@@ -96,11 +96,11 @@ return function(cfg: {
 	local Agent = {}
 	function Agent:reset(batchSize: number)
 		batchSize = batchSize or 1
-		mgrH = Tensor.zeros({ hiddenDim, batchSize }, "f64", true)
-		mgrC = Tensor.zeros({ hiddenDim, batchSize }, "f64", true)
-		wkrH = Tensor.zeros({ hiddenDim, batchSize }, "f64", true)
-		wkrC = Tensor.zeros({ hiddenDim, batchSize }, "f64", true)
-		currentGoal = Tensor.zeros({ goalDim, batchSize }, "f64", true)
+		mgrH = Tensor.zeros({ hiddenDim, batchSize }, true)
+		mgrC = Tensor.zeros({ hiddenDim, batchSize }, true)
+		wkrH = Tensor.zeros({ hiddenDim, batchSize }, true)
+		wkrC = Tensor.zeros({ hiddenDim, batchSize }, true)
+		currentGoal = Tensor.zeros({ goalDim, batchSize }, true)
 		startState = nil
 		stepCount = 0
 		lastMgrUpdateStep = 0
@@ -118,7 +118,7 @@ return function(cfg: {
 			local h_new, c_new = mgrLSTM:forward(mgr_z, mgrH, mgrC)
 			mgrH, mgrC = h_new, c_new
 			local g = mgrGoalHead:forward(h_new)
-			local g_norm = Tensor.zeros(g._shape, g._dtype, true)
+			local g_norm = Tensor.zeros(g._shape, true)
 			task.desynchronize()
 			local g_store = g._storage
 			local gn_store = g_norm._storage
@@ -140,7 +140,7 @@ return function(cfg: {
 			startState = state:detach()
 		end
 		-- z: {hiddenDim, B}, goal: {goalDim, B}
-		local combinedInput = Tensor.zeros({ hiddenDim + goalDim, B }, state._dtype, true)
+		local combinedInput = Tensor.zeros({ hiddenDim + goalDim, B }, true)
 		task.desynchronize()
 		local z_store = z._storage
 		local g_store = currentGoal._storage
@@ -189,7 +189,7 @@ return function(cfg: {
 		local d = transition.done
 		local z = Activations.ReLU(perceptor:forward(s))
 		local z_next = Activations.ReLU(perceptor:forward(ns))
-		local dz = Tensor.zeros(z._shape, z._dtype, false)
+		local dz = Tensor.zeros(z._shape, false)
 		task.desynchronize()
 		local zs, zns, dzs = z._storage, z_next._storage, dz._storage
 		for i = 1, #zs do
@@ -225,7 +225,7 @@ return function(cfg: {
 	end
 	function Agent:trainStep()
 		optimizer:zeroGrad()
-		local _loss = Tensor.zeros({ 1 }, "f64", true)
+		local _loss = Tensor.zeros({ 1 }, true)
 		table.clear(workerBuffer)
 		table.clear(managerBuffer)
 		return { loss = 0 }

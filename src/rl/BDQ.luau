@@ -207,10 +207,8 @@ return function(cfg)
 	local Agent = {}
 
 	Agent.optimizer = opt
-	
-	Agent.getPolicy = function(_)
-		return policy
-	end
+	Agent.policy = policy
+	Agent.target = target
 
 	Agent.parameters = function(_)
 		return policy:parameters()

@@ -29,7 +29,7 @@ local function transform(self, X)
 	task.desynchronize()
 	local D, B = X._shape[1], X._shape[2]
 	local K = self.k
-	local Y = Tensor.zeros({ K, B }, X._dtype, X._requiresGrad)
+	local Y = Tensor.zeros({ K, B }, X._requiresGrad)
 	for j = 1, B do
 		for k = 1, K do
 			local s = 0.0
@@ -51,7 +51,7 @@ local function new(X, K: number, iters: number?)
 	iters = iters or 50
 
 	task.desynchronize()
-	local mu = Tensor.zeros({ D, 1 }, X._dtype, false)
+	local mu = Tensor.zeros({ D, 1 }, false)
 	for i = 1, D do
 		local s = 0.0
 		for j = 1, N do
@@ -60,7 +60,7 @@ local function new(X, K: number, iters: number?)
 		mu._storage[i] = s / N
 	end
 
-	local Xc = Tensor.zeros({ D, N }, X._dtype, false)
+	local Xc = Tensor.zeros({ D, N }, false)
 	for i = 1, D do
 		local m = mu._storage[i]
 		for j = 1, N do
@@ -68,7 +68,7 @@ local function new(X, K: number, iters: number?)
 		end
 	end
 
-	local C = Tensor.zeros({ D, D }, X._dtype, false)
+	local C = Tensor.zeros({ D, D }, false)
 	for i = 1, D do
 		for k = i, D do
 			local s = 0.0
@@ -81,7 +81,7 @@ local function new(X, K: number, iters: number?)
 		end
 	end
 
-	local comps = Tensor.zeros({ D, K }, X._dtype, false)
+	local comps = Tensor.zeros({ D, K }, false)
 
 	for k = 1, K do
 		local v = table.create(D, 0.0)

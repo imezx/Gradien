@@ -8,7 +8,7 @@ local Scan = {}
 
 local function ensureGrad(t: Types.Tensor): Types.Tensor?
 	if not t._grad then
-		t._grad = Tensor.zeros(t._shape, t._dtype, false)
+		t._grad = Tensor.zeros(t._shape, false)
 	end
 	return t._grad
 end
@@ -29,7 +29,7 @@ function Scan.selectiveScan(
 		or B._requiresGrad
 		or C._requiresGrad
 		or (D and D._requiresGrad)
-	local out = Tensor.zeros({ batch, seqLen, dim }, u._dtype, requiresGrad)
+	local out = Tensor.zeros({ batch, seqLen, dim }, requiresGrad)
 	local us = u._storage
 	local ds = delta._storage
 	local As = A._storage

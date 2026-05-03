@@ -22,7 +22,7 @@ function Fused.linearReLU(x: Tensor, W: Tensor, b: Tensor): Tensor
 	local batch = x._shape[2]
 	local outDim = W._shape[1]
 
-	local y = Tensor.zeros({ outDim, batch }, x._dtype, false)
+	local y = Tensor.zeros({ outDim, batch }, false)
 	local yStore = y._storage
 	local xStore = x._storage
 	local wStore = W._storage
@@ -72,7 +72,7 @@ function Fused.linearGELU(x: Tensor, W: Tensor, b: Tensor): Tensor
 	local batch = x._shape[2]
 	local outDim = W._shape[1]
 
-	local y = Tensor.zeros({ outDim, batch }, x._dtype, false)
+	local y = Tensor.zeros({ outDim, batch }, false)
 	local yStore = y._storage
 	local xStore = x._storage
 	local wStore = W._storage
@@ -117,8 +117,8 @@ function Fused.linearDropoutReLU(x: Tensor, W: Tensor, b: Tensor, p: number, rng
 	local batch = x._shape[2]
 	local outDim = W._shape[1]
 
-	local y = Tensor.zeros({ outDim, batch }, x._dtype, false)
-	local mask = Tensor.zeros({ outDim, batch }, x._dtype, false)
+	local y = Tensor.zeros({ outDim, batch }, false)
+	local mask = Tensor.zeros({ outDim, batch }, false)
 
 	local yStore = y._storage
 	local mStore = mask._storage

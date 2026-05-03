@@ -1,11 +1,5 @@
 --!native
 --!optimize 2
-local function bytesPer(dtype: string?): number
-	if dtype == "f64" then return 8 end
-	if dtype == "u8" then return 1 end
-	return 4
-end
-
 local function count(model): (number, number)
 	local ps = model:parameters()
 	local total, bytes = 0, 0
@@ -14,7 +8,7 @@ local function count(model): (number, number)
 		local t = ps[i]
 		local n = #t._storage
 		total += n
-		bytes += n * bytesPer(t._dtype)
+		bytes += n * 8 -- 8 bytes
 	end
 	task.synchronize()
 	return total, bytes

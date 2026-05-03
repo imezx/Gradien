@@ -38,16 +38,16 @@ local function sliceTimeStep(x: Types.Tensor, t: number, inputDim: number, batch
 	return Tensor.reshape(step, { inputDim, batch })
 end
 
-local function initStates(self, batch: number, dtype: Types.DType, requiresGrad: boolean)
+local function initStates(self, batch: number, requiresGrad: boolean)
 	local states = table.create(#self._cells)
 	for i = 1, #self._cells do
 		if self._cellType == "lstm" then
 			states[i] = {
-				h = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad),
-				c = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad),
+				h = Tensor.zeros({ self._hiddenDim, batch }, requiresGrad),
+				c = Tensor.zeros({ self._hiddenDim, batch }, requiresGrad),
 			}
 		else
-			states[i] = Tensor.zeros({ self._hiddenDim, batch }, dtype, requiresGrad)
+			states[i] = Tensor.zeros({ self._hiddenDim, batch }, requiresGrad)
 		end
 	end
 	return states
@@ -57,7 +57,7 @@ local function forward(self, x: Types.Tensor): Types.Tensor
 	assert(#x._shape == 3, "SequenceClassifier: expected input shape {features, time, batch}")
 	local inputDim, timeSteps, batch = x._shape[1], x._shape[2], x._shape[3]
 	assert(inputDim == self._inputDim, "SequenceClassifier: inputDim mismatch")
-	local states = initStates(self, batch, x._dtype, x._requiresGrad)
+	local states = initStates(self, batch, x._requiresGrad)
 	local last
 	for t = 1, timeSteps do
 		local step = sliceTimeStep(x, t, inputDim, batch)

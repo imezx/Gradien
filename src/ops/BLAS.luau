@@ -14,7 +14,7 @@ local function matmul(A: Types.Tensor, B: Types.Tensor): Types.Tensor
 	local K2, N = B._shape[1], B._shape[2]
 	assert(K == K2, "matmul: inner dims mismatch")
 	task.desynchronize()
-	local C = Tensor.zeros({ M, N }, A._dtype, A._requiresGrad or B._requiresGrad)
+	local C = Tensor.zeros({ M, N }, A._requiresGrad or B._requiresGrad)
 	local as, bs, cs = A._storage, B._storage, C._storage
 	for i = 1, M do
 		local offsetA = (i - 1) * K

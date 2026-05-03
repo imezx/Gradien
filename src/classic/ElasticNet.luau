@@ -31,8 +31,8 @@ return function(inF: number, lambda1: number?, lambda2: number?)
 					local B = last - i + 1
 
 					-- slice columns [i, last] from X and Y
-					local XB = Tensor.zeros({ D, B }, X._dtype, X._requiresGrad)
-					local YB = Tensor.zeros({ 1, B }, Y._dtype, false)
+					local XB = Tensor.zeros({ D, B }, X._requiresGrad)
+					local YB = Tensor.zeros({ 1, B }, false)
 					task.desynchronize()
 					for d = 1, D do
 						for b = 1, B do

@@ -17,7 +17,6 @@ return function(capacity: number, alpha: number, beta0: number)
 	local tree = table.create(2 * N, 0)
 	local maxPrio = 1
 	local stateDim: number? = nil
-	local stateDType: string? = nil
 
 	local function updateLeaf(i, p)
 		task.desynchronize()
@@ -50,11 +49,9 @@ return function(capacity: number, alpha: number, beta0: number)
 			assert(t.state and t.nextState, "prio replay: state and nextState required")
 			if not stateDim then
 				stateDim = #t.state._storage
-				stateDType = t.state._dtype
 			end
-			local dtype = stateDType
-			S[pos] = Buffer.writeDenseArray(t.state._storage, dtype, S[pos])
-			NS[pos] = Buffer.writeDenseArray(t.nextState._storage, dtype, NS[pos])
+			S[pos] = Buffer.writeDenseArray(t.state._storage, S[pos])
+			NS[pos] = Buffer.writeDenseArray(t.nextState._storage, NS[pos])
 			A[pos], R[pos], D[pos] = t.action, t.reward, t.done
 			updateLeaf(pos, maxPrio ^ alpha)
 			pos += 1
@@ -73,9 +70,8 @@ return function(capacity: number, alpha: number, beta0: number)
 			assert(stateDim, "prio replay: buffer is empty")
 			task.desynchronize()
 			local sd = stateDim
-			local dtype = stateDType
-			local SX = Tensor.zeros({ sd, n }, dtype, false)
-			local NSX = Tensor.zeros({ sd, n }, dtype, false)
+			local SX = Tensor.zeros({ sd, n }, false)
+			local NSX = Tensor.zeros({ sd, n }, false)
 			local AA, RR, DD = table.create(n, 1), table.create(n, 0), table.create(n, false)
 			local idxs, w = table.create(n, 1), table.create(n, 0.0)
 			local tot = tree[1]
@@ -91,8 +87,8 @@ return function(capacity: number, alpha: number, beta0: number)
 				local P = p / tot
 				w[j] = ((size * P) ^ -beta0)
 				AA[j], RR[j], DD[j] = A[i], R[i], D[i]
-				Buffer.copyDenseToColumn(S[i], dtype, SX._storage, j, n, sd)
-				Buffer.copyDenseToColumn(NS[i], dtype, NSX._storage, j, n, sd)
+				Buffer.copyDenseToColumn(S[i], SX._storage, j, n, sd)
+				Buffer.copyDenseToColumn(NS[i], NSX._storage, j, n, sd)
 			end
 			local maxw = 0
 			for j = 1, n do

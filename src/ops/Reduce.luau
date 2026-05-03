@@ -10,7 +10,7 @@ local Reduce = {}
 function Reduce.sumCols(X: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local D, B = X._shape[1], X._shape[2]
-	local out = Tensor.empty({ 1, B }, X._dtype, X._requiresGrad)
+	local out = Tensor.empty({ 1, B }, X._requiresGrad)
 	local xs, ys = X._storage, out._storage
 	for j = 1, B do
 		local acc = 0
@@ -31,7 +31,7 @@ end
 function Reduce.meanCols(X: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local D, B = X._shape[1], X._shape[2]
-	local out = Tensor.empty({ 1, B }, X._dtype, X._requiresGrad)
+	local out = Tensor.empty({ 1, B }, X._requiresGrad)
 	local xs, ys = X._storage, out._storage
 	local invD = 1 / D
 	for j = 1, B do

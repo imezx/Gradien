@@ -1,0 +1,11 @@
+{
+  "name": "Gradien",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Gradien": {
+        "$path": "src"
+      }
+    }
+  }
+}

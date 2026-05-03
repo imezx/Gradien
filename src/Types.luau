@@ -1,12 +1,10 @@
 --!strict
-export type DType = "f64" | "f32" | "i32" | "u8"
 export type Shape = { number }
 export type Storage = { number }
 
 export type Tensor = {
 	_storage: Storage,
 	_shape: Shape,
-	_dtype: DType,
 	_requiresGrad: boolean,
 	_size: number,
 	_strides: { number }?,
@@ -59,7 +57,6 @@ export type TrainerSnapshot = {
 
 export type SnapshotTensor = {
 	shape: { number },
-	dtype: DType,
 	data: { number },
 }
 

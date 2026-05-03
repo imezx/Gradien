@@ -16,7 +16,7 @@ end
 
 local function softmaxAtoms(logits: Types.Tensor, A: number, Z: number)
 	local B = logits._shape[2]
-	local out = Tensor.zeros({ A * Z, B }, logits._dtype, false)
+	local out = Tensor.zeros({ A * Z, B }, false)
 	task.desynchronize()
 	for j = 1, B do
 		for a = 1, A do
@@ -46,7 +46,7 @@ end
 
 local function qExpect(P: Types.Tensor, A: number, Z: number, zVals: { number })
 	local B = P._shape[2]
-	local Q = Tensor.zeros({ A, B }, P._dtype, false)
+	local Q = Tensor.zeros({ A, B }, false)
 	task.desynchronize()
 	for j = 1, B do
 		for a = 1, A do
@@ -151,15 +151,12 @@ return function(cfg)
 
 	return {
 		optimizer = opt,
-		
-		getPolicy = function(_)
-			return policy
-		end,
+		policy = policy,
+		target = target,
 
 		parameters = function(_)
 			return policy:parameters()
 		end,
-
 		act = function(_, state, n)
 			local eps = epsAt(n)
 			if math.random() < eps then
@@ -167,13 +164,11 @@ return function(cfg)
 			end
 			return pickAction(state)
 		end,
-
 		observe = function(_, t)
 			if cfg.replay then
 				cfg.replay:push(t)
 			end
 		end,
-
 		trainStep = function(_)
 			if not cfg.replay or not cfg.replay:canSample(cfg.batchSize) then
 				return nil
@@ -267,7 +262,6 @@ return function(cfg)
 			end
 			return loss / B
 		end,
-
 		loadParameters = function(_, snapshot, strict)
 			local fp = policy:parameters()
 			if strict ~= false then

@@ -65,8 +65,8 @@ return function(cfg)
 	local alphaOpt = nil
 	if autoAlpha then
 		assert(cfg.alphaOptimizerFactory, "SAC: alphaOptimizerFactory required when autoAlpha=true")
-		logAlphaTensor = Tensor.zeros({ 1, 1 }, "f64", true)
-		logAlphaTensor._storage[1] = math.log(alpha)
+		logAlphaTensor = Tensor.zeros({ 1, 1 }, true);
+		(logAlphaTensor :: any)._storage[1] = math.log(alpha)
 		alphaOpt = cfg.alphaOptimizerFactory({ logAlphaTensor })
 	end
 
@@ -102,16 +102,12 @@ return function(cfg)
 		local cap = capacity
 		local rSize, rHead = 0, 1
 		local rS, rA, rR, rNS, rD = {}, {}, {}, {}, {}
-		local rDtype
 
 		replay = {
 			push = function(_, t)
-				if not rDtype then
-					rDtype = t.state._dtype
-				end
 				local i = rHead
-				rS[i] = Buffer.writeDenseArray(t.state._storage, rDtype, rS[i])
-				rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rDtype, rNS[i])
+				rS[i] = Buffer.writeDenseArray(t.state._storage, rS[i])
+				rNS[i] = Buffer.writeDenseArray(t.nextState._storage, rNS[i])
 				rA[i] = type(t.action) == "table" and t.action or { t.action }
 				rR[i], rD[i] = t.reward, t.done and true or false
 				rHead = (rHead % cap) + 1
@@ -123,16 +119,15 @@ return function(cfg)
 				return rSize >= n
 			end,
 			sample = function(_, n)
-				local dtype = rDtype or "f64"
-				local S = Tensor.zeros({ sDim, n }, dtype, false)
-				local NS = Tensor.zeros({ sDim, n }, dtype, false)
-				local A = Tensor.zeros({ aDim, n }, dtype, false)
+				local S = Tensor.zeros({ sDim, n }, false)
+				local NS = Tensor.zeros({ sDim, n }, false)
+				local A = Tensor.zeros({ aDim, n }, false)
 				local R, D = table.create(n, 0.0), table.create(n, false)
 				task.desynchronize()
 				for j = 1, n do
 					local i = math.random(1, rSize)
-					Buffer.copyDenseToColumn(rS[i], dtype, S._storage, j, n, sDim)
-					Buffer.copyDenseToColumn(rNS[i], dtype, NS._storage, j, n, sDim)
+					Buffer.copyDenseToColumn(rS[i], S._storage, j, n, sDim)
+					Buffer.copyDenseToColumn(rNS[i], NS._storage, j, n, sDim)
 					local act = rA[i]
 					for d = 1, aDim do
 						A._storage[(d - 1) * n + j] = act[d] or 0
@@ -147,7 +142,7 @@ return function(cfg)
 
 	local function concat(state, action)
 		local B = state._shape[2]
-		local sa = Tensor.zeros({ sDim + aDim, B }, state._dtype, state._requiresGrad or action._requiresGrad)
+		local sa = Tensor.zeros({ sDim + aDim, B }, state._requiresGrad or action._requiresGrad)
 		task.desynchronize()
 		for d = 1, sDim do
 			local base = (d - 1) * B
@@ -188,8 +183,8 @@ return function(cfg)
 	-- actor output: {2*aDim, B} (mu rows first, then log_std rows)
 	-- returns: action Tensor {aDim,B} with grad, log_pi {1,B} with grad
 	local function sampleAction(out: Types.Tensor, B: number): (Types.Tensor, Types.Tensor)
-		local action = Tensor.zeros({ aDim, B }, out._dtype, out._requiresGrad)
-		local logPi = Tensor.zeros({ 1, B }, out._dtype, out._requiresGrad)
+		local action = Tensor.zeros({ aDim, B }, out._requiresGrad)
+		local logPi = Tensor.zeros({ 1, B }, out._requiresGrad)
 
 		-- store eps for backward
 		local eps = table.create(aDim * B, 0.0)
@@ -271,10 +266,10 @@ return function(cfg)
 
 	local Agent = {}
 
-    Agent.optimizer = actorOpt
-    Agent.actorOptimizer = actorOpt
-    Agent.criticOptimizer = criticOpt
-	
+	Agent.optimizer = actorOpt
+	Agent.actorOptimizer = actorOpt
+	Agent.criticOptimizer = criticOpt
+
 	function Agent:act(state: Types.Tensor, evaluate: boolean?)
 		local out = actor:forward(state) -- {2*aDim, 1}
 		local result = table.create(aDim, 0.0)
@@ -317,7 +312,7 @@ return function(cfg)
 		local Q1next = critic1Target:forward(nsA1)
 		local Q2next = critic2Target:forward(nsA1)
 
-		local targetQ = Tensor.zeros({ 1, B }, S._dtype, false)
+		local targetQ = Tensor.zeros({ 1, B }, false)
 		task.desynchronize()
 		for j = 1, B do
 			local qmin = math.min(Q1next._storage[j], Q2next._storage[j])
@@ -343,22 +338,30 @@ return function(cfg)
 		local Q2val = critic2:forward(smuA)
 
 		-- actor loss = E[ alpha * log_pi(a|s) - min(Q1,Q2) ]
-		-- grad w.r.t. actor output:
-		local gActOut = Tensor.zeros({ 2 * aDim, B }, S._dtype, false)
-		task.desynchronize()
 		local totalActorLoss = 0.0
+		local gQ1actor = Tensor.zeros({ 1, B }, false)
+		local gQ2actor = Tensor.zeros({ 1, B }, false)
+		local gLogPi = Tensor.zeros({ 1, B }, false)
+
+		task.desynchronize()
 		for j = 1, B do
-			local qmin = math.min(Q1val._storage[j], Q2val._storage[j])
-			totalActorLoss += curAlpha * logPi._storage[j] - qmin
-		end
-		local gQ = Tensor.zeros({ 1, B }, S._dtype, false)
-		for j = 1, B do
-			gQ._storage[j] = -1 / B
+			local q1j = Q1val._storage[j]
+			local q2j = Q2val._storage[j]
+			totalActorLoss += curAlpha * logPi._storage[j] - math.min(q1j, q2j)
+			-- gradient of -min(Q1,Q2): route to whichever Q was smaller
+			local g = -1 / B
+			if q1j <= q2j then
+				gQ1actor._storage[j] = g
+			else
+				gQ2actor._storage[j] = g
+			end
+			-- gradient of alpha * log_pi
+			gLogPi._storage[j] = curAlpha / B
 		end
 		task.synchronize()
 
-		Tape.backwardFrom(Q1val, gQ)
-
+		Tape.backwardFrom(Q1val, gQ1actor)
+		Tape.backwardFrom(Q2val, gQ2actor)
 		if actOut._requiresGrad then
 			actOut._grad = actOut._grad or Tensor.zeros(actOut._shape)
 		end

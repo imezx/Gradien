@@ -10,10 +10,9 @@ local function packBatch(self, idxs: { number })
 	assert(B > 0, "UniformReplay: empty index list")
 	assert(self.stateDim, "UniformReplay: buffer is empty")
 	local sd = self.stateDim
-	local dtype = self.stateDType
 
-	local S = Tensor.zeros({ sd, B }, dtype, false)
-	local NS = Tensor.zeros({ sd, B }, dtype, false)
+	local S = Tensor.zeros({ sd, B }, false)
+	local NS = Tensor.zeros({ sd, B }, false)
 	local A = table.create(B, 1)
 	local R = table.create(B, 0.0)
 	local D = table.create(B, false)
@@ -22,8 +21,8 @@ local function packBatch(self, idxs: { number })
 	for j = 1, B do
 		local k = idxs[j]
 		A[j], R[j], D[j] = self.A[k], self.R[k], self.D[k]
-		Buffer.copyDenseToColumn(self.S[k], dtype, S._storage, j, B, sd)
-		Buffer.copyDenseToColumn(self.NS[k], dtype, NS._storage, j, B, sd)
+		Buffer.copyDenseToColumn(self.S[k], S._storage, j, B, sd)
+		Buffer.copyDenseToColumn(self.NS[k], NS._storage, j, B, sd)
 	end
 	task.synchronize()
 
@@ -42,13 +41,12 @@ local function push(self, t)
 	assert(stateTensor._storage and nextStateTensor._storage, "UniformReplay: states must be Tensors")
 	if not self.stateDim then
 		self.stateDim = #stateTensor._storage
-		self.stateDType = stateTensor._dtype
 	end
 	local i = self.head
-	self.S[i] = Buffer.writeDenseArray(stateTensor._storage, self.stateDType, self.S[i])
+	self.S[i] = Buffer.writeDenseArray(stateTensor._storage, self.S[i])
 	self.A[i] = t.action
 	self.R[i] = t.reward
-	self.NS[i] = Buffer.writeDenseArray(nextStateTensor._storage, self.stateDType, self.NS[i])
+	self.NS[i] = Buffer.writeDenseArray(nextStateTensor._storage, self.NS[i])
 	self.D[i] = t.done and true or false
 
 	self.head += 1
@@ -66,7 +64,7 @@ end
 
 local function clear(self)
 	self.size_, self.head = 0, 1
-	self.stateDim, self.stateDType = nil, nil
+	self.stateDim = nil
 	table.clear(self.S)
 	table.clear(self.A)
 	table.clear(self.R)
@@ -100,7 +98,6 @@ end
 --@field NS {any}
 --@field D {boolean}
 --@field stateDim number?
---@field stateDType string?
 local function new(capacity: number)
 	assert(capacity >= 1, "UniformReplay: capacity must be >= 1")
 	return {
@@ -113,7 +110,6 @@ local function new(capacity: number)
 		NS = {},
 		D = {},
 		stateDim = nil,
-		stateDType = nil,
 		push = push,
 		size = size,
 		clear = clear,

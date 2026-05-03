@@ -19,7 +19,6 @@ local function makeMatrixView(tensor: Types.Tensor, rows: number, cols: number):
 	return {
 		_storage = tensor._storage,
 		_shape = { rows, cols },
-		_dtype = tensor._dtype,
 		_requiresGrad = tensor._requiresGrad,
 		_parents = nil,
 		_backprop = nil,
@@ -35,7 +34,7 @@ end
 
 local function transposeMatrix(matrix: Types.Tensor): Types.Tensor
 	local rows, cols = matrix._shape[1], matrix._shape[2]
-	local out = Tensor.zeros({ cols, rows }, matrix._dtype, matrix._requiresGrad)
+	local out = Tensor.zeros({ cols, rows }, matrix._requiresGrad)
 	task.desynchronize()
 	local os, ms = out._storage, matrix._storage
 	for r = 1, rows do
@@ -57,11 +56,10 @@ local function col2im(
 	KH: number,
 	KW: number,
 	Ho: number,
-	Wo: number,
-	dtype: Types.DType
+	Wo: number
 ): Types.Tensor
 	local patch = C * KH * KW
-	local out = Tensor.zeros({ C, H, Wd, B }, dtype, false)
+	local out = Tensor.zeros({ C, H, Wd, B }, false)
 	local xs = out._storage
 	local cs = cols._storage
 	local HWd_B = H * Wd * B
@@ -107,7 +105,7 @@ local function im2col(
 	Wo: number
 )
 	local patch = C * KH * KW
-	local cols = Tensor.zeros({ patch, Ho * Wo * B }, X._dtype, false)
+	local cols = Tensor.zeros({ patch, Ho * Wo * B }, false)
 	local xs = X._storage
 	local cs = cols._storage
 	local HWd_B = H * Wd * B
@@ -160,13 +158,13 @@ return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 	local W_flat = makeMatrixView(W, C_in, C_out * KH * KW)
 	local W_T = transposeMatrix(W_flat) -- {C_out * KH * KW, C_in}
 	local cols = BLAS.matmul(W_T, X_flat) -- {C_out * KH * KW, H * Wd * B}
-	local Y = col2im(cols, C_out, Ho, Wo, B, KH, KW, H, Wd, X._dtype)
+	local Y = col2im(cols, C_out, Ho, Wo, B, KH, KW, H, Wd)
 	task.synchronize()
 	return Tape.makeNode(Y, { X, W }, function(gy: Types.Tensor)
 		local gy_cols = im2col(gy, C_out, Ho, Wo, B, KH, KW, H, Wd)
 		if X._requiresGrad then
 			if not X._grad then
-				X._grad = Tensor.zeros({ C_in, H, Wd, B }, X._dtype, false)
+				X._grad = Tensor.zeros({ C_in, H, Wd, B }, false)
 			end
 			local dX_flat = BLAS.matmul(W_flat, gy_cols)
 			local dX = reshapeInPlace(dX_flat, { C_in, H, Wd, B })
@@ -174,7 +172,7 @@ return function(X: Types.Tensor, W: Types.Tensor): Types.Tensor
 		end
 		if W._requiresGrad then
 			if not W._grad then
-				W._grad = Tensor.zeros({ C_in, C_out, KH, KW }, W._dtype, false)
+				W._grad = Tensor.zeros({ C_in, C_out, KH, KW }, false)
 			end
 			local gy_cols_T = transposeMatrix(gy_cols)
 			local dW_flat = BLAS.matmul(X_flat, gy_cols_T)

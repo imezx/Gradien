@@ -25,7 +25,7 @@ return function(
 
 			task.desynchronize()
 			-- out = x + (a * y)
-			local out = Tensor.zeros(y._shape, y._dtype, requiresGrad)
+			local out = Tensor.zeros(y._shape, requiresGrad)
 			for i = 1, #y._storage do
 				out._storage[i] = x._storage[i] + (a._storage[i] * y._storage[i])
 			end

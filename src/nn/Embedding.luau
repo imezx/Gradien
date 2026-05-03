@@ -5,12 +5,12 @@ local Tape = require("../autograd/Tape")
 local Types = require("../Types")
 
 return function(numEmbeds: number, dim: number): Types.Module<Types.Tensor, Types.Tensor>
-	local W = Tensor.zeros({ dim, numEmbeds }, "f64", true)
+	local W = Tensor.zeros({ dim, numEmbeds }, true)
 	return {
 		forward = function(_, idx: { number }): Types.Tensor
 			task.desynchronize()
 			local B = #idx
-			local Y = Tensor.zeros({ dim, B }, "f64", W._requiresGrad)
+			local Y = Tensor.zeros({ dim, B }, W._requiresGrad)
 			for j = 1, B do
 				local k = math.clamp(idx[j], 1, numEmbeds)
 				for i = 1, dim do

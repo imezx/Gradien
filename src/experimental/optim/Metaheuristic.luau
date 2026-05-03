@@ -37,9 +37,9 @@ return function(params: { Types.Tensor }, config: MetaheuristicConfig): Types.Op
 	local globalBestScore: { number } = {}
 
 	for i, param in ipairs(params) do
-		local v = Tensor.zeros(param._shape, param._dtype, false)
-		local pb = Tensor.zeros(param._shape, param._dtype, false)
-		local gb = Tensor.zeros(param._shape, param._dtype, false)
+		local v = Tensor.zeros(param._shapedtype, false)
+		local pb = Tensor.zeros(param._shapedtype, false)
+		local gb = Tensor.zeros(param._shapedtype, false)
 
 		local pStore = param._storage
 		local vStore = v._storage

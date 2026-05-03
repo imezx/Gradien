@@ -21,7 +21,7 @@ function L.focal_backward(logits: Types.Tensor, targetIdx: { number }, alpha: nu
 
 	task.desynchronize()
 	-- softmax
-	local sm = Tensor.zeros({ C, B }, logits._dtype, false)
+	local sm = Tensor.zeros({ C, B }, false)
 	for j = 1, B do
 		local m = -1 / 0
 		for i = 1, C do
@@ -43,7 +43,7 @@ function L.focal_backward(logits: Types.Tensor, targetIdx: { number }, alpha: nu
 
 	-- loss + grad
 	local lossSum = 0
-	local grad = Tensor.zeros({ C, B }, logits._dtype, false)
+	local grad = Tensor.zeros({ C, B }, false)
 
 	for j = 1, B do
 		local y = targetIdx[j]
@@ -172,7 +172,7 @@ function L.kl_div_backward(pred: Types.Tensor, target: Types.Tensor, fromLogits:
 	local C, B = pred._shape[1], pred._shape[2]
 	local logp
 	if fromLogits then
-		logp = Tensor.zeros({ C, B }, pred._dtype, pred._requiresGrad)
+		logp = Tensor.zeros({ C, B }, pred._requiresGrad)
 		task.desynchronize()
 		for j = 1, B do
 			local m = -1 / 0
@@ -198,7 +198,7 @@ function L.kl_div_backward(pred: Types.Tensor, target: Types.Tensor, fromLogits:
 	end
 	-- loss = mean_j sum_i T_ij * (logT_ij - logP_ij)
 	local lossSum = 0.0
-	local grad = Tensor.zeros({ C, B }, pred._dtype, false)
+	local grad = Tensor.zeros({ C, B }, false)
 	task.desynchronize()
 	for j = 1, B do
 		for i = 1, C do

@@ -12,7 +12,6 @@ local Linear = require("../../nn/Linear")
 local Sequential = require("../../nn/Sequential")
 
 local assert = Util.Assert
-local sizeFromShape = Util.sizeFromShape
 
 local function sameShape(a: { number }, b: { number }): boolean
 	if #a ~= #b then
@@ -28,7 +27,7 @@ end
 
 local function ensureScratchTensor(buf: Types.Tensor?, shape: { number }): Types.Tensor
 	if not buf or not sameShape(buf._shape, shape) then
-		return Tensor.zeros(shape, "f64", false)
+		return Tensor.zeros(shape, false)
 	end
 	task.desynchronize()
 	for i = 1, #buf._storage do
@@ -62,10 +61,10 @@ local function QILayer(config: QILayerConfig): Types.Module<Types.Tensor, Types.
 	local entangleBeta = 0.1
 	local eps = 1e-8
 
-	local W_real = Tensor.zeros({ config.outDim, config.inDim }, "f64", true)
-	local W_imag = Tensor.zeros({ config.outDim, config.inDim }, "f64", true) -- used when superposition OR interference enabled
-	local b = Tensor.zeros({ config.outDim, 1 }, "f64", true)
-	local entanglement = if useEntanglement then Tensor.zeros({ config.outDim, config.outDim }, "f64", true) else nil
+	local W_real = Tensor.zeros({ config.outDim, config.inDim }, true)
+	local W_imag = Tensor.zeros({ config.outDim, config.inDim }, true) -- used when superposition OR interference enabled
+	local b = Tensor.zeros({ config.outDim, 1 }, true)
+	local entanglement = if useEntanglement then Tensor.zeros({ config.outDim, config.outDim }, true) else nil
 
 	task.desynchronize()
 	local fanIn, fanOut = config.inDim, config.outDim

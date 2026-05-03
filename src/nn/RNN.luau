@@ -16,7 +16,7 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 			local gx = Wx:forward(x) -- {H,B}
 			local gh = Wh:forward(h) -- {H,B}
 			local B = gx._shape[2]
-			local y = Tensor.zeros({ hidF, B }, gx._dtype, (gx._requiresGrad or gh._requiresGrad) == true)
+			local y = Tensor.zeros({ hidF, B }, (gx._requiresGrad or gh._requiresGrad) == true)
 			for i = 1, hidF do
 				for b = 1, B do
 					local idx = (i - 1) * B + b
@@ -30,10 +30,10 @@ return function(inF: number, hidF: number): Types.Module<Types.Tensor, Types.Ten
 				if gx._requiresGrad or gh._requiresGrad then
 					task.desynchronize()
 					if gx._requiresGrad then
-						gx._grad = gx._grad or Tensor.zeros(gx._shape, gx._dtype, false)
+						gx._grad = gx._grad or Tensor.zeros(gx._shape, false)
 					end
 					if gh._requiresGrad then
-						gh._grad = gh._grad or Tensor.zeros(gh._shape, gh._dtype, false)
+						gh._grad = gh._grad or Tensor.zeros(gh._shape, false)
 					end
 					for i = 1, hidF do
 						for b = 1, B do

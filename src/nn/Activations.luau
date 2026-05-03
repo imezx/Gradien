@@ -10,7 +10,7 @@ local assert = Util.Assert
 local A = {}
 
 local function prep(x: Types.Tensor): Types.Tensor
-	return Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	return Tensor.zeros(x._shape, x._requiresGrad)
 end
 
 local function ensureGrad(x: Types.Tensor): Types.Tensor?
@@ -284,7 +284,7 @@ end
 function A.SwiGLU(a: Types.Tensor, b: Types.Tensor): Types.Tensor
 	assert(#a._storage == #b._storage, "SwiGLU: size mismatch")
 	task.desynchronize()
-	local y = Tensor.zeros(a._shape, a._dtype, a._requiresGrad or b._requiresGrad)
+	local y = Tensor.zeros(a._shape, a._requiresGrad or b._requiresGrad)
 	local as, bs, ys = a._storage, b._storage, y._storage
 	for i = 1, #as do
 		local val_a = as[i]
@@ -336,7 +336,7 @@ function A.SwiGLUSplit(x: Types.Tensor, hidden: number?): Types.Tensor
 	end
 
 	task.desynchronize()
-	local y = Tensor.zeros({ H, B }, x._dtype, x._requiresGrad)
+	local y = Tensor.zeros({ H, B }, x._requiresGrad)
 	local xs, ys = x._storage, y._storage
 	for j = 1, B do
 		-- a is at x[(0...H-1)*B + j]

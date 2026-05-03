@@ -19,7 +19,7 @@ local function slice(
 	size: number
 ): (Types.Tensor, { number })
 	local B = math.min(size, N - startIdx + 1)
-	local XB = Tensor.zeros({ D, B }, X._dtype, X._requiresGrad)
+	local XB = Tensor.zeros({ D, B }, X._requiresGrad)
 	local yB = table.create(B, 1)
 	task.desynchronize()
 	for j = 1, B do

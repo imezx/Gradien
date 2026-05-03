@@ -21,7 +21,7 @@ return function(p: number?, training: boolean?, rng: Random?): Types.Module<Type
 				return x
 			end
 			local D, B = x._shape[1], x._shape[2]
-			local out = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+			local out = Tensor.zeros(x._shape, x._requiresGrad)
 			task.desynchronize()
 			local smask = table.create(B, 0)
 			for b = 1, B do
@@ -40,7 +40,7 @@ return function(p: number?, training: boolean?, rng: Random?): Types.Module<Type
 			end
 			return Tape.makeNode(out, { x }, function(gy: Types.Tensor)
 				if x._requiresGrad then
-					x._grad = x._grad or Tensor.zeros(x._shape, x._dtype, false)
+					x._grad = x._grad or Tensor.zeros(x._shape, false)
 					task.desynchronize()
 					for d = 1, D do
 						local base = (d - 1) * B

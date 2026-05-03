@@ -7,7 +7,7 @@ local Types = require("../Types")
 local function forward(self: { weight: Types.Tensor, eps: number }, x: Types.Tensor): Types.Tensor
 	task.desynchronize()
 	local D, B = x._shape[1], x._shape[2]
-	local y = Tensor.zeros({ D, B }, x._dtype, x._requiresGrad)
+	local y = Tensor.zeros({ D, B }, x._requiresGrad)
 	local w = self.weight
 
 	for j = 1, B do
@@ -71,7 +71,7 @@ local function parameters(self: { weight: Types.Tensor, eps: number }): { Types.
 end
 
 local function new(D: number, eps: number?)
-	local weight = Tensor.zeros({ D, 1 }, "f32", true)
+	local weight = Tensor.zeros({ D, 1 }, true)
 	task.desynchronize()
 	for i = 1, #weight._storage do
 		weight._storage[i] = 1

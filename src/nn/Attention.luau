@@ -26,7 +26,7 @@ local Attention = {}
 Attention.__index = Attention
 
 local function scaleTensor(x: TensorT, factor: number): TensorT
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	local y = Tensor.zeros(x._shape, x._requiresGrad)
 	task.desynchronize()
 	for i = 1, #x._storage do
 		y._storage[i] = x._storage[i] * factor
@@ -55,7 +55,7 @@ local function addTensors(a: TensorT, b: TensorT): TensorT
 		assert(a._shape[i] == b._shape[i], "addTensors: shape mismatch")
 	end
 	local requiresGrad = (a._requiresGrad or b._requiresGrad) == true
-	local out = Tensor.zeros(a._shape, a._dtype, requiresGrad)
+	local out = Tensor.zeros(a._shape, requiresGrad)
 	task.desynchronize()
 	for i = 1, #a._storage do
 		out._storage[i] = a._storage[i] + b._storage[i]
@@ -91,7 +91,7 @@ local function dropoutTensor(x: TensorT, dropProb: number, rng: Random?): Tensor
 	local keep = 1 - dropProb
 	assert(keep > 0, "dropoutTensor: keep probability must be > 0")
 	local mask = table.create(#x._storage)
-	local y = Tensor.zeros(x._shape, x._dtype, x._requiresGrad)
+	local y = Tensor.zeros(x._shape, x._requiresGrad)
 	task.desynchronize()
 	for i = 1, #x._storage do
 		local keepSample = ((rng or Random.new()):NextNumber(0, 1) < keep) and 1 or 0
@@ -158,7 +158,7 @@ local function concatHeads(heads: { TensorT }, headDim: number, tokens: number):
 			break
 		end
 	end
-	local y = Tensor.zeros({ embedDim, tokens }, heads[1]._dtype, requiresGrad)
+	local y = Tensor.zeros({ embedDim, tokens }, requiresGrad)
 	task.desynchronize()
 	local yStore = y._storage
 	for idxHead = 1, #heads do
@@ -254,7 +254,6 @@ function Attention.new(embedDim: number, numHeads: number, opts: AttentionOption
 		_dropoutRNG = options.dropoutRNG or Random.new(),
 		_train = true,
 		_causal = options.causal == true,
-		_causalMaskCache = {} :: { [Types.DType]: { [number]: TensorT } },
 		_lastAttn = nil,
 	}, Attention)
 	return self
@@ -270,7 +269,7 @@ function Attention:forward(x: TensorT, mask: TensorT?): TensorT
 	local v = Tensor.narrow(qkv, 1, 2 * embedDim + 1, embedDim)
 	local effMask = mask
 	if not effMask and self._causal then
-		effMask = self:_getCausalMask(tokens, q._dtype)
+		effMask = self:_getCausalMask(tokens)
 	end
 	local dropCfg: DropoutConfig?
 	if self._attentionDropout > 0 and self._train then
@@ -319,20 +318,10 @@ function Attention:setCausal(enabled: boolean?)
 	self._causal = enabled ~= false
 end
 
-function Attention:_getCausalMask(tokens: number, dtype: Types.DType?): TensorT
-	dtype = dtype or "f64"
-	local cacheByDtype = self._causalMaskCache[dtype]
-	if not cacheByDtype then
-		cacheByDtype = {}
-		self._causalMaskCache[dtype] = cacheByDtype
-	end
-	local mask = cacheByDtype[tokens]
-	if mask then
-		return mask
-	end
-	local newMask = Tensor.zeros({ tokens, tokens }, dtype, false)
-	task.desynchronize()
+function Attention:_getCausalMask(tokens: number): TensorT
+	local newMask = Tensor.zeros({ tokens, tokens }, false)
 	local store = newMask._storage
+	task.desynchronize()
 	for i = 1, tokens do
 		local offset = (i - 1) * tokens
 		for j = i + 1, tokens do
@@ -340,7 +329,6 @@ function Attention:_getCausalMask(tokens: number, dtype: Types.DType?): TensorT
 		end
 	end
 	task.synchronize()
-	cacheByDtype[tokens] = newMask
 	return newMask
 end
 

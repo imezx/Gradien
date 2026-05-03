@@ -18,7 +18,7 @@ return function(scaleFactor: number, H: number?, W: number?)
 				local Hout = H * sf
 				local Wout = W * sf
 				local Lout = Hout * Wout
-				local out = Tensor.zeros({ C, Lout, B }, x._dtype, x._requiresGrad)
+				local out = Tensor.zeros({ C, Lout, B }, x._requiresGrad)
 				task.desynchronize()
 				for c = 1, C do
 					for h = 1, Hout do
@@ -65,7 +65,7 @@ return function(scaleFactor: number, H: number?, W: number?)
 			else
 				-- 1D: upsample sequence axis
 				local Lout = L * sf
-				local out = Tensor.zeros({ C, Lout, B }, x._dtype, x._requiresGrad)
+				local out = Tensor.zeros({ C, Lout, B }, x._requiresGrad)
 				task.desynchronize()
 				for c = 1, C do
 					for l = 1, Lout do

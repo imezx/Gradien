@@ -73,7 +73,7 @@ return function(cfg)
 		local s0 = states[1]
 		local sd = s0._shape[1]
 		local B = T
-		local S = Tensor.zeros({ sd, B }, s0._dtype, true)
+		local S = Tensor.zeros({ sd, B }, true)
 
 		task.desynchronize()
 		for j = 1, B do
@@ -159,7 +159,7 @@ return function(cfg)
 
 		local B = #advantages
 
-		local target = Tensor.zeros({ 1, B }, V._dtype, false)
+		local target = Tensor.zeros({ 1, B }, false)
 		task.desynchronize()
 		for j = 1, B do
 			target._storage[j] = returns[j]
@@ -179,7 +179,7 @@ return function(cfg)
 			local P = Softmax.forward(logits)
 			local C = logits._shape[1]
 
-			local grad = Tensor.zeros(logits._shape, logits._dtype, false)
+			local grad = Tensor.zeros(logits._shape, false)
 			local lossSum = 0.0
 
 			task.desynchronize()
@@ -232,14 +232,8 @@ return function(cfg)
     Agent.optimizer = policyOpt
     Agent.policyOptimizer = policyOpt
     Agent.valueOptimizer = valueOpt
-
-	function Agent:getPolicy()
-		return policy
-	end
-
-	function Agent:getValue()
-		return value
-	end
+	Agent.policy = policy
+	Agent.value = value
 
 	function Agent:parameters()
 		local params = {}

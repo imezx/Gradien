@@ -12,7 +12,7 @@ local function RBF(x: Types.Tensor, grid: Types.Tensor, h: number): Types.Tensor
 	-- out: {B, In, G}
 	local B, In = x._shape[1], x._shape[2]
 	local G = grid._shape[1]
-	local out = Tensor.zeros({ B, In, G }, x._dtype, x._requiresGrad or grid._requiresGrad)
+	local out = Tensor.zeros({ B, In, G }, x._requiresGrad or grid._requiresGrad)
 	local xs = x._storage
 	local gs = grid._storage
 	local os = out._storage
@@ -36,7 +36,7 @@ local function RBF(x: Types.Tensor, grid: Types.Tensor, h: number): Types.Tensor
 	return Tape.makeNode(out, { x, grid }, function(gy)
 		if x._requiresGrad then
 			if not x._grad then
-				x._grad = Tensor.zeros(x._shape, x._dtype, false)
+				x._grad = Tensor.zeros(x._shape, false)
 			end
 			task.desynchronize()
 			local x_grad = x._grad :: Types.Tensor
@@ -71,7 +71,7 @@ local function KANLayer(in_features: number, out_features: number, grid_size: nu
 	local h = 1.0 / (grid_size :: number)
 	local base_linear = Linear(in_features, out_features)
 	local spline_linear = Linear(in_features * (grid_size :: number), out_features)
-	local grid = Tensor.fromArray({}, { grid_size :: number }, "f64", false)
+	local grid = Tensor.fromArray({}, { grid_size :: number }, false)
 	local step = 2.0 / ((grid_size :: number) - 1)
 	for i = 1, grid_size :: number do
 		grid._storage[i] = -1 + (i - 1) * step
@@ -90,7 +90,7 @@ local function KANLayer(in_features: number, out_features: number, grid_size: nu
 			local x_rbf = RBF(x_flat, grid, h) -- {N, In, G}
 			local x_rbf_flat = Tensor.reshape(x_rbf, { flattened_dim, in_features * (grid_size :: number) })
 			local spline_out = spline_linear:forward(x_rbf_flat)
-			local out = Tensor.zeros(base_out._shape, base_out._dtype, true)
+			local out = Tensor.zeros(base_out._shape, true)
 			task.desynchronize()
 			local os, bs, ss = out._storage, base_out._storage, spline_out._storage
 			for i = 1, #os do

@@ -7,8 +7,8 @@ local Types = require("../Types")
 
 --{C_in,H,W,B} -> {C_out, H+KH-1, W+KW-1, B}
 return function(C_in: number, C_out: number, KH: number, KW: number): Types.Module<Types.Tensor, Types.Tensor>
-	local W = Tensor.zeros({ C_in, C_out, KH, KW }, "f64", true)
-	local b = Tensor.zeros({ C_out, 1 }, "f64", true)
+	local W = Tensor.zeros({ C_in, C_out, KH, KW }, true)
+	local b = Tensor.zeros({ C_out, 1 }, true)
 	local self = {}
 	self.parameters = function(_)
 		return { W, b }
@@ -42,7 +42,7 @@ return function(C_in: number, C_out: number, KH: number, KW: number): Types.Modu
 		if out._requiresGrad or b._requiresGrad then
 			return Tape.makeNode(out, parents, function(gy: Types.Tensor)
 				if b._requiresGrad then
-					b._grad = b._grad or Tensor.zeros(b._shape, b._dtype, false)
+					b._grad = b._grad or Tensor.zeros(b._shape, false)
 					task.desynchronize()
 					local gbs = b._grad._storage
 					local gys = gy._storage

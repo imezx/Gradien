@@ -52,7 +52,7 @@ return function(params: { Types.Tensor }, lr: number, momentum: number?, nestero
 					local g = p._grad
 					local m = state[p]
 					if not m then
-						m = Tensor.zeros(p._shape, p._dtype, false)
+						m = Tensor.zeros(p._shape, false)
 						state[p] = m
 					end
 					task.desynchronize()
