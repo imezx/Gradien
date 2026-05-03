@@ -84,13 +84,6 @@ Advantage Actor-Critic.
 ```
 :::
 
-### `:getPolicy`
-::: code-group
-```lua [Definition]
-() -> Module
-```
-:::
-
 ### `:loadParameters` (DQN only)
 ::: code-group
 ```lua [Definition]

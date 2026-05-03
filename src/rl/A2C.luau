@@ -199,11 +199,6 @@ return function(cfg)
 	end
 
 	--@return nn.Module
-	function Agent:getPolicy()
-		return policy
-	end
-
-	--@return nn.Module
 	function Agent:getValue()
 		return value
 	end
