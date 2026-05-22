@@ -536,85 +536,83 @@ local function generate(self, x: Types.Tensor, N: number): (Types.Tensor, number
 	return best_logits :: Types.Tensor, best_score
 end
 
-return {
-	new = function(cfg: Config)
-		assert(cfg.embedDim, "GRAM: embedDim required")
-		assert(cfg.vocabSize, "GRAM: vocabSize required")
+return function(cfg: Config)
+	assert(cfg.embedDim, "GRAM: embedDim required")
+	assert(cfg.vocabSize, "GRAM: vocabSize required")
 
-		local embedDim = cfg.embedDim
-		local vocabSize = cfg.vocabSize
-		local numHeads = cfg.numHeads or 8
-		local mlpDim = cfg.mlpDim or embedDim
-		local K = cfg.K or 4
-		local T = cfg.T or 3
-		local beta = cfg.beta or 0.05
-		local alpha = cfg.alpha or 0.8
-		local useAttention = cfg.useAttention ~= false
+	local embedDim = cfg.embedDim
+	local vocabSize = cfg.vocabSize
+	local numHeads = cfg.numHeads or 8
+	local mlpDim = cfg.mlpDim or embedDim
+	local K = cfg.K or 4
+	local T = cfg.T or 3
+	local beta = cfg.beta or 0.05
+	local alpha = cfg.alpha or 0.8
+	local useAttention = cfg.useAttention ~= false
 
-		local f_L = buildTransformerBlock(embedDim, numHeads, mlpDim, useAttention)
-		local f_H = buildTransformerBlock(embedDim, numHeads, mlpDim, useAttention)
+	local f_L = buildTransformerBlock(embedDim, numHeads, mlpDim, useAttention)
+	local f_H = buildTransformerBlock(embedDim, numHeads, mlpDim, useAttention)
 
-		local prior_norm = LayerNorm(embedDim)
-		local post_norm = LayerNorm(2 * embedDim)
+	local prior_norm = LayerNorm(embedDim)
+	local post_norm = LayerNorm(2 * embedDim)
 
-		-- MLPs: u_t -> mu_p, logvar_p
-		local prior_fc1 = Linear(embedDim, 2 * embedDim)
-		local prior_fc_mu = Linear(embedDim, embedDim)
-		local prior_fc_logvar = Linear(embedDim, embedDim)
+	-- MLPs: u_t -> mu_p, logvar_p
+	local prior_fc1 = Linear(embedDim, 2 * embedDim)
+	local prior_fc_mu = Linear(embedDim, embedDim)
+	local prior_fc_logvar = Linear(embedDim, embedDim)
 
-		-- MLPs: [u_t, e_y] -> mu_q, logvar_q
-		local post_fc1 = Linear(2 * embedDim, 2 * embedDim)
-		local post_fc_mu = Linear(embedDim, embedDim)
-		local post_fc_logvar = Linear(embedDim, embedDim)
+	-- MLPs: [u_t, e_y] -> mu_q, logvar_q
+	local post_fc1 = Linear(2 * embedDim, 2 * embedDim)
+	local post_fc_mu = Linear(embedDim, embedDim)
+	local post_fc_logvar = Linear(embedDim, embedDim)
 
-		-- Heads
-		local act_head = Linear(embedDim, 1) -- ACT halting logit
-		local lprm_head = Linear(embedDim, 1) -- LPRM score
-		local lm_head = Linear(embedDim, vocabSize) -- Logits output
+	-- Heads
+	local act_head = Linear(embedDim, 1) -- ACT halting logit
+	local lprm_head = Linear(embedDim, 1) -- LPRM score
+	local lm_head = Linear(embedDim, vocabSize) -- Logits output
 
-		initLinear(prior_fc1)
-		initLinear(prior_fc_mu)
-		initLinearZeros(prior_fc_logvar)
-		initLinear(post_fc1)
-		initLinear(post_fc_mu)
-		initLinearZeros(post_fc_logvar)
-		initLinear(act_head)
-		initLinear(lprm_head)
-		initLinear(lm_head)
+	initLinear(prior_fc1)
+	initLinear(prior_fc_mu)
+	initLinearZeros(prior_fc_logvar)
+	initLinear(post_fc1)
+	initLinear(post_fc_mu)
+	initLinearZeros(post_fc_logvar)
+	initLinear(act_head)
+	initLinear(lprm_head)
+	initLinear(lm_head)
 
-		return {
-			_embedDim = embedDim,
-			_vocabSize = vocabSize,
-			_K = K,
-			_T = T,
-			_beta = beta,
-			_alpha = alpha,
-			_useAttention = useAttention,
+	return {
+		_embedDim = embedDim,
+		_vocabSize = vocabSize,
+		_K = K,
+		_T = T,
+		_beta = beta,
+		_alpha = alpha,
+		_useAttention = useAttention,
 
-			f_L = f_L,
-			f_H = f_H,
-			prior_norm = prior_norm,
-			prior_fc1 = prior_fc1,
-			prior_fc_mu = prior_fc_mu,
-			prior_fc_logvar = prior_fc_logvar,
-			post_norm = post_norm,
-			post_fc1 = post_fc1,
-			post_fc_mu = post_fc_mu,
-			post_fc_logvar = post_fc_logvar,
-			act_head = act_head,
-			lprm_head = lprm_head,
-			lm_head = lm_head,
+		f_L = f_L,
+		f_H = f_H,
+		prior_norm = prior_norm,
+		prior_fc1 = prior_fc1,
+		prior_fc_mu = prior_fc_mu,
+		prior_fc_logvar = prior_fc_logvar,
+		post_norm = post_norm,
+		post_fc1 = post_fc1,
+		post_fc_mu = post_fc_mu,
+		post_fc_logvar = post_fc_logvar,
+		act_head = act_head,
+		lprm_head = lprm_head,
+		lm_head = lm_head,
 
-			_train = true,
-			_h_0 = nil,
-			_l_0 = nil,
-			_last_act_steps = 0,
-			_last_lprm_value = 0,
+		_train = true,
+		_h_0 = nil,
+		_l_0 = nil,
+		_last_act_steps = 0,
+		_last_lprm_value = 0,
 
-			forward = forward,
-			parameters = parameters,
-			train = train,
-			generate = generate,
-		}
-	end,
-}
+		forward = forward,
+		parameters = parameters,
+		train = train,
+		generate = generate,
+	}
+end
