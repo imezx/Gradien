@@ -25,6 +25,7 @@ Gradien.Experimental = {
 	NN = {
 		MambaBlock = require("@self/experimental/nn/Mamba"),
 		KAN = require("@self/experimental/nn/KAN"),
+		GRAM = require("@self/experimental/nn/GRAM"),
 	},
 	Optim = {
 		Metaheuristic = require("@self/experimental/optim/Metaheuristic"),

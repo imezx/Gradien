@@ -137,7 +137,7 @@ return function(cfg: {
 			task.synchronize()
 			currentGoal = g_norm
 			lastMgrUpdateStep = stepCount
-			startState = state:detach()
+			startState = Tensor.detach(state)
 		end
 		-- z: {hiddenDim, B}, goal: {goalDim, B}
 		local combinedInput = Tensor.zeros({ hiddenDim + goalDim, B }, true)
