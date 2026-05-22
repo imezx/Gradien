@@ -21,11 +21,11 @@ Gradien.Tokenizers = require("@self/Tokenizers")
 Gradien.Experimental = {
 	Models = {
 		QIMHNN = require("@self/experimental/models/QIMHNN"),
+		GRAM = require("@self/experimental/models/GRAM"),
 	},
 	NN = {
 		MambaBlock = require("@self/experimental/nn/Mamba"),
 		KAN = require("@self/experimental/nn/KAN"),
-		GRAM = require("@self/experimental/nn/GRAM"),
 	},
 	Optim = {
 		Metaheuristic = require("@self/experimental/optim/Metaheuristic"),
