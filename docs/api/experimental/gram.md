@@ -60,15 +60,15 @@ Located in `Gradien.Experimental.Models.GRAM`.
 
 ```lua [Configuration]
 type GRAMConfig = {
-    embedDim: number,          -- Embedding / state dimension (required)
-    vocabSize: number,         -- Output vocabulary / action dimension (required)
-    numHeads: number?,         -- Number of attention heads in f_L/f_H blocks (default: 8)
-    mlpDim: number?,           -- Hidden dimension for GatedMLP layers (default: embedDim)
-    K: number?,                -- Number of inner loop (System 1) refinement steps (default: 4)
-    T: number?,                -- Max number of outer loop (System 2) planning steps (default: 3)
-    beta: number?,             -- KL divergence penalty coefficient (default: 0.05)
-    alpha: number?,            -- KL balancing weight for prior/posterior (default: 0.8)
-    useAttention: boolean?,    -- Enable Multi-Head Attention blocks in f_L/f_H (default: true)
+    embedDim: number,       -- Embedding / state dimension (required)
+    vocabSize: number,      -- Output vocabulary / action dimension (required)
+    numHeads: number?,      -- Number of attention heads in f_L/f_H blocks (default: 8)
+    mlpDim: number?,        -- Hidden dimension for GatedMLP layers (default: embedDim)
+    K: number?,             -- Number of inner loop (System 1) refinement steps (default: 4)
+    T: number?,             -- Max number of outer loop (System 2) planning steps (default: 3)
+    beta: number?,          -- KL divergence penalty coefficient (default: 0.05)
+    alpha: number?,         -- KL balancing weight for prior/posterior (default: 0.8)
+    useAttention: boolean?, -- Enable Multi-Head Attention blocks in f_L/f_H (default: true)
 }
 ```
 
