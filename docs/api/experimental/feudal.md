@@ -1,4 +1,4 @@
-# Feudal Networks
+# Feudal Networks <Badge type="warning" text="Experimental" />
 
 Implementation of Feudal Reinforcement Learning agent hierarchy.
 

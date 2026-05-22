@@ -1,4 +1,4 @@
-# Mamba
+# Mamba <Badge type="warning" text="Experimental" />
 
 Implementation of the Mamba state space model architecture.
 
